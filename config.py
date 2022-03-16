@@ -27,9 +27,11 @@ cudnn.benchmark = True
 # Image magnification factor
 upscale_factor = 4
 # Current configuration parameter method
-mode = "train_srresnet"
+mode = "valid"
+#mode = "train_srgan"
+
 # Experiment name, easy to save weights and log files
-exp_name = "train_SRResNet_baseline"
+exp_name = "thermal_camera_training"
 
 # ==============================================================================
 # Training SRResNet model configuration
@@ -64,22 +66,22 @@ if mode == "train_srresnet":
 # ==============================================================================
 if mode == "train_srgan":
     # Dataset address
-    train_image_dir = "data/ImageNet/SRGAN/train"
-    valid_image_dir = "data/ImageNet/SRGAN/valid"
+    train_image_dir = "data/Training_220315/train"
+    valid_image_dir = "data/Training_220315/val"
 
     image_size = 96
     batch_size = 16
     num_workers = 4
 
     # Incremental training and migration training
-    resume = True
+    resume = False
     strict = False
     start_epoch = 0
     resume_d_weight = ""
     resume_g_weight = "results/Train_SRResNet_baseline/g-last.pth"
 
     # Total num epochs
-    epochs = 8
+    epochs = 100
 
     # Loss function weight
     pixel_weight = 1.0
@@ -87,8 +89,8 @@ if mode == "train_srgan":
     adversarial_weight = 0.001
 
     # Adam optimizer parameter for Discriminator
-    d_model_lr = 1e-4
-    g_model_lr = 1e-4
+    d_model_lr = 1e-2
+    g_model_lr = 1e-2
     d_model_betas = (0.9, 0.999)
     g_model_betas = (0.9, 0.999)
 
@@ -106,8 +108,14 @@ if mode == "train_srgan":
 # ==============================================================================
 if mode == "valid":
     # Test data address
-    lr_dir = f"data/Set5/LRbicx{upscale_factor}"
-    sr_dir = f"results/test/{exp_name}"
-    hr_dir = f"data/Set5/GTmod12"
+    if 1:
+        lr_dir = f"data/Training_220315/val/IR_LOW"
+        sr_dir = f"results/test/{exp_name}"
+        hr_dir = f"data/Training_220315/val/IR_HIGH"
+    else:
+        lr_dir = f"data/Set5/LRbicx{upscale_factor}"
+        sr_dir = f"results/test/{exp_name}"
+        hr_dir = f"data/Set5/GTmod12"
 
-    model_path = f"results/{exp_name}/g-last.pth"、
+    model_path = f"results/{exp_name}/g-best.pth"
+    #model_path = f"results/{exp_name}/srresnet-ImageNet-2df2c5f9.pth"
