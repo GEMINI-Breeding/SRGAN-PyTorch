@@ -22,11 +22,12 @@ from torch import Tensor
 from torch.utils.data import Dataset
 from torchvision import transforms
 from torchvision.transforms.functional import InterpolationMode as IMode
+import torchvision.transforms.functional as TF
 
 import imgproc
 import cv2
 import math
-
+import random
 __all__ = ["ThermalImageDataset", "LMDBDataset"]
 
 
@@ -65,7 +66,7 @@ class ThermalImageDataset(Dataset):
 
     """
 
-    def __init__(self, dataroot: str, image_size: int, upscale_factor: int, mode: str) -> None:
+    def __init__(self, dataroot: str, image_size: int, upscale_factor: int, mode: str, random_crop=True) -> None:
         
         self.DEBUG = True
         low_dataroot = os.path.join(dataroot,"IR_LOW")
@@ -77,27 +78,43 @@ class ThermalImageDataset(Dataset):
         self.high_filenames = [os.path.join(high_dataroot, x) for x in os.listdir(high_dataroot) if x.split('.')[-1] in ["jpg","png","bmp"]]
         self.high_filenames.sort()
 
-        if mode == "train" and False:
-            self.hr_transforms = transforms.Compose([
-                transforms.RandomCrop(image_size),
-                transforms.RandomRotation(90),
-                transforms.RandomHorizontalFlip(0.5),
-            ])
-        else:
-            self.hr_transforms = transforms.Compose([
-                transforms.ToPILImage(),
-                transforms.CenterCrop(image_size)
-            ])
+        if 0:
+            if mode == "train" :
+                self.hr_transforms = transforms.Compose([
+                    transforms.RandomRotation(90),
+                    transforms.RandomHorizontalFlip(0.5),
+                ])
+
+                self.lr_transforms = transforms.Compose([
+                    transforms.ToPILImage(),
+                    transforms.CenterCrop(image_size // upscale_factor)
+                ])
+            else:
+                self.hr_transforms = transforms.Compose([
+                    transforms.ToPILImage(),
+                ])
             
 
-        if 0:
-            self.lr_transforms = transforms.Resize(image_size // upscale_factor, interpolation=IMode.BICUBIC, antialias=True)
+
+            if 0:
+                self.lr_transforms = transforms.Resize(image_size // upscale_factor, interpolation=IMode.BICUBIC, antialias=True)
+            else:
+                self.lr_transforms = transforms.Compose([
+                    transforms.ToPILImage(),
+                    transforms.CenterCrop(image_size // upscale_factor)
+                ])
+                # There is no way to random crop both lr and hr image in same position
         else:
+            self.hr_transforms = transforms.Compose([
+                    transforms.ToPILImage(),
+                ])
             self.lr_transforms = transforms.Compose([
-                transforms.ToPILImage(),
-                transforms.CenterCrop(image_size // upscale_factor)
-            ])
-            # There is no way to random crop both lr and hr image in same position
+                    transforms.ToPILImage(),
+                ])
+
+        self.image_size = image_size
+        self.upscale_factor = upscale_factor
+        self.random_crop = random_crop
 
         
 
@@ -107,7 +124,7 @@ class ThermalImageDataset(Dataset):
         self.lr_image = cv2.imread(self.low_filenames[batch_index])  # FLIR
         self.hr_image = cv2.imread(self.high_filenames[batch_index]) # VarioCAM
 
-        if 0:
+        if 1:
             self.lr_image = cv2.cvtColor(self.lr_image,cv2.COLOR_BGR2GRAY)
             self.hr_image = cv2.cvtColor(self.hr_image,cv2.COLOR_BGR2GRAY)
 
@@ -123,9 +140,37 @@ class ThermalImageDataset(Dataset):
         
         (lr_image, hr_image) = self.getImage(batch_index)
 
+        if self.random_crop:
+            lr_crop_w = self.image_size // self.upscale_factor
+            lr_crop_h = self.image_size // self.upscale_factor
+            lr_crop_x = random.randint(0,lr_image.shape[1] - self.image_size // self.upscale_factor)
+            lr_crop_y = random.randint(0,lr_image.shape[0] - self.image_size // self.upscale_factor)
+
+            lr_image = lr_image[lr_crop_y:lr_crop_y+lr_crop_h,lr_crop_x:lr_crop_x+lr_crop_w]
+
+            hr_crop_w = self.image_size 
+            hr_crop_h = self.image_size
+            hr_crop_x = int(lr_crop_x * self.upscale_factor)
+            hr_crop_y = int(lr_crop_y * self.upscale_factor)
+
+            hr_image = hr_image[hr_crop_y:hr_crop_y+hr_crop_h,hr_crop_x:hr_crop_x+hr_crop_w]
+
         # Transform image
         hr_image = self.hr_transforms(hr_image)
         lr_image = self.lr_transforms(lr_image)
+
+        if random.random() > 0.5:
+            hr_image = TF.vflip(hr_image)
+            lr_image  = TF.vflip(lr_image)
+
+        if random.random() > 0.5:
+            hr_image = TF.hflip(hr_image)
+            lr_image  = TF.hflip(lr_image)
+
+        if random.random() > 0.5:
+            hr_image =  TF.rotate(hr_image,90)
+            lr_image  = TF.rotate(lr_image,90)
+       
 
         # Convert image data into Tensor stream format (PyTorch).
         # Note: The range of input and output is between [0, 1]

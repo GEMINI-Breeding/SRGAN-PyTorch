@@ -15,13 +15,16 @@
 import os
 
 import torch
-from PIL import Image
+from torch.cuda import amp
+from PIL import Image, ImageOps
+
 from natsort import natsorted
 
 import config
 import imgproc
 from model import Generator
-
+from ssim import ssim
+import numpy as np
 
 def main() -> None:
     # Create a folder of super-resolution experiment results
@@ -70,25 +73,32 @@ def main() -> None:
         lr_image = Image.open(lr_image_path).convert("RGB")
         hr_image = Image.open(hr_image_path).convert("RGB")
 
+        if 1:
+            # Conver to grayscale
+            lr_image = ImageOps.grayscale(lr_image)
+            hr_image = ImageOps.grayscale(hr_image)
+
         # Extract RGB channel image data
         lr_tensor = imgproc.image2tensor(lr_image, range_norm=False, half=True).to(config.device).unsqueeze_(0)
         hr_tensor = imgproc.image2tensor(hr_image, range_norm=False, half=True).to(config.device).unsqueeze_(0)
 
+            
         # Only reconstruct the Y channel image data.
         with torch.no_grad():
             sr_tensor = model(lr_tensor).clamp_(0, 1)
 
+        
         # Cal PSNR
         if 0:
-            sr_y_tensor = imgproc.convert_rgb_to_y(sr_tensor)
-            hr_y_tensor = imgproc.convert_rgb_to_y(hr_tensor)
-            total_psnr += 10. * torch.log10(1. / torch.mean((sr_y_tensor - hr_y_tensor) ** 2))
+            with amp.autocast():
+                total_psnr += ssim(sr_tensor,hr_tensor)
 
         sr_image = imgproc.tensor2image(sr_tensor, range_norm=False, half=True)
+        sr_image = np.reshape(sr_image,(sr_image.shape[0],sr_image.shape[1]))
         sr_image = Image.fromarray(sr_image)
         sr_image.save(sr_image_path)
 
-    print(f"PSNR: {total_psnr / total_files:.2f} dB.\n")
+    print(f"SSIM: {total_psnr / total_files:.2f}\n")
 
 
 if __name__ == "__main__":

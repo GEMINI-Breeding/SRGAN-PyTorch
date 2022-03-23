@@ -17,7 +17,7 @@ import os
 
 import lmdb
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 from torch import Tensor
 from torch.utils.data import Dataset
 from torchvision import transforms
@@ -58,6 +58,10 @@ class ImageDataset(Dataset):
     def __getitem__(self, batch_index: int) -> [Tensor, Tensor]:
         # Read a batch of image data
         image = Image.open(self.filenames[batch_index])
+        
+        # Image to grayscale for thermal
+        if 1:
+            image = ImageOps.grayscale(image)
 
         # Transform image
         hr_image = self.hr_transforms(image)

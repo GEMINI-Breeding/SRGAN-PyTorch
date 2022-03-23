@@ -25,8 +25,11 @@ from torch.utils.tensorboard import SummaryWriter
 
 import config
 from thermal_dataset import ThermalImageDataset as ImageDataset
-from model import Discriminator, Generator, ContentLoss
+from model_thermal_rgb import Discriminator, Generator, ContentLoss
 
+from ssim import ssim, ssim_for_loss
+
+autocast_on = False
 
 def main():
     print("Load train dataset and valid dataset...")
@@ -85,6 +88,7 @@ def main():
               scaler,
               writer)
 
+        #psnr = validate_ssim(generator, valid_dataloader, psnr_criterion, epoch, writer)
         psnr = validate(generator, valid_dataloader, psnr_criterion, epoch, writer)
         # Automatically save the model with the highest index
         is_best = psnr > best_psnr
@@ -153,6 +157,7 @@ def define_loss() -> [nn.MSELoss, nn.MSELoss, ContentLoss, nn.BCEWithLogitsLoss]
 
     """
     psnr_criterion = nn.MSELoss().to(config.device)
+    #psnr_criterion = ssim
     pixel_criterion = nn.MSELoss().to(config.device)
     content_criterion = ContentLoss().to(config.device)
     adversarial_criterion = nn.BCEWithLogitsLoss().to(config.device)
@@ -268,14 +273,22 @@ def train(discriminator,
         d_optimizer.zero_grad()
 
         # Calculate the loss of the discriminator on the high-resolution image
-        with amp.autocast():
+        if autocast_on:
+            with amp.autocast():
+                hr_output = discriminator(hr)
+                d_loss_hr = adversarial_criterion(hr_output, real_label)
+        else:
             hr_output = discriminator(hr)
             d_loss_hr = adversarial_criterion(hr_output, real_label)
         # Gradient zoom
         scaler.scale(d_loss_hr).backward()
 
         # Calculate the loss of the discriminator on the super-resolution image.
-        with amp.autocast():
+        if autocast_on:
+            with amp.autocast():
+                sr_output = discriminator(sr.detach())
+                d_loss_sr = adversarial_criterion(sr_output, fake_label)
+        else:
             sr_output = discriminator(sr.detach())
             d_loss_sr = adversarial_criterion(sr_output, fake_label)
         # Gradient zoom
@@ -297,11 +310,18 @@ def train(discriminator,
         g_optimizer.zero_grad()
 
         # Calculate the loss of the generator on the super-resolution image
-        with amp.autocast():
+        if autocast_on:
+            with amp.autocast():
+                output = discriminator(sr)
+                pixel_loss = config.pixel_weight * pixel_criterion(sr, hr.detach())
+                content_loss = config.content_weight * content_criterion(sr, hr.detach())
+                adversarial_loss = config.adversarial_weight * adversarial_criterion(output, real_label)
+        else:
             output = discriminator(sr)
             pixel_loss = config.pixel_weight * pixel_criterion(sr, hr.detach())
             content_loss = config.content_weight * content_criterion(sr, hr.detach())
             adversarial_loss = config.adversarial_weight * adversarial_criterion(output, real_label)
+
         # Count discriminator total loss
         g_loss = pixel_loss + content_loss + adversarial_loss
         # Gradient zoom
@@ -355,8 +375,11 @@ def validate(model, valid_dataloader, psnr_criterion, epoch, writer) -> float:
             lr = lr.to(config.device, non_blocking=True)
             hr = hr.to(config.device, non_blocking=True)
 
-            # Mixed precision
-            with amp.autocast():
+            if autocast_on:
+                # Mixed precision
+                with amp.autocast():
+                    sr = model(lr)
+            else:
                 sr = model(lr)
 
             # measure accuracy and record loss
@@ -376,6 +399,46 @@ def validate(model, valid_dataloader, psnr_criterion, epoch, writer) -> float:
 
     return psnres.avg
 
+
+
+def validate_ssim(model, valid_dataloader, psnr_criterion, epoch, writer) -> float:
+    batch_time = AverageMeter("Time", ":6.3f")
+    psnres = AverageMeter("SSIM", ":4.2f")
+    progress = ProgressMeter(len(valid_dataloader), [batch_time, psnres], prefix="Valid: ")
+
+    # Put the generator in verification mode.
+    model.eval()
+
+    with torch.no_grad():
+        end = time.time()
+        for index, (lr, hr) in enumerate(valid_dataloader):
+            lr = lr.to(config.device, non_blocking=True)
+            hr = hr.to(config.device, non_blocking=True)
+
+            if autocast_on:
+                # Mixed precision
+                with amp.autocast():
+                    sr = model(lr)
+            else:
+                sr = model(lr)
+
+            # measure accuracy and record loss
+            # psnr = psnr_criterion(sr, hr)
+            psnr = 10. * torch.log10(1. / psnr_criterion(sr, hr))
+            psnres.update(psnr.item(), hr.size(0))
+
+            # measure elapsed time
+            batch_time.update(time.time() - end)
+            end = time.time()
+
+            if index % config.print_frequency == 0:
+                progress.display(index)
+
+        writer.add_scalar("Valid/SSIM", psnres.avg, epoch + 1)
+        # Print evaluation indicators.
+        print(f"* SSIM: {psnres.avg:4.2f}.\n")
+
+    return psnres.avg
 
 class AverageMeter(object):
     """Computes and stores the average and current value"""

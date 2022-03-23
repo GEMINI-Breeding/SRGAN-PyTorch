@@ -27,6 +27,7 @@ import config
 from dataset import ImageDataset
 from model import Discriminator, Generator, ContentLoss
 
+autocast_on = False
 
 def main():
     print("Load train dataset and valid dataset...")
@@ -259,6 +260,9 @@ def train(discriminator,
         # Use generators to create super-resolution images
         sr = generator(lr)
 
+        if sr.detach().to('cpu').numpy()[0,0,0,0] != sr.detach().to('cpu').numpy()[0,0,0,0]:
+            print("Nan error!")
+            continue
         # Start training discriminator
         # At this stage, the discriminator needs to require a derivative gradient
         for p in discriminator.parameters():
@@ -268,14 +272,23 @@ def train(discriminator,
         d_optimizer.zero_grad()
 
         # Calculate the loss of the discriminator on the high-resolution image
-        with amp.autocast():
+        if autocast_on:
+            with amp.autocast():
+                hr_output = discriminator(hr)
+                d_loss_hr = adversarial_criterion(hr_output, real_label)
+        else:
             hr_output = discriminator(hr)
             d_loss_hr = adversarial_criterion(hr_output, real_label)
+
         # Gradient zoom
         scaler.scale(d_loss_hr).backward()
 
         # Calculate the loss of the discriminator on the super-resolution image.
-        with amp.autocast():
+        if autocast_on:
+            with amp.autocast():
+                sr_output = discriminator(sr.detach())
+                d_loss_sr = adversarial_criterion(sr_output, fake_label)
+        else:
             sr_output = discriminator(sr.detach())
             d_loss_sr = adversarial_criterion(sr_output, fake_label)
         # Gradient zoom
@@ -297,7 +310,13 @@ def train(discriminator,
         g_optimizer.zero_grad()
 
         # Calculate the loss of the generator on the super-resolution image
-        with amp.autocast():
+        if autocast_on:
+            with amp.autocast():
+                output = discriminator(sr)
+                pixel_loss = config.pixel_weight * pixel_criterion(sr, hr.detach())
+                content_loss = config.content_weight * content_criterion(sr, hr.detach())
+                adversarial_loss = config.adversarial_weight * adversarial_criterion(output, real_label)
+        else:
             output = discriminator(sr)
             pixel_loss = config.pixel_weight * pixel_criterion(sr, hr.detach())
             content_loss = config.content_weight * content_criterion(sr, hr.detach())
@@ -355,8 +374,11 @@ def validate(model, valid_dataloader, psnr_criterion, epoch, writer) -> float:
             lr = lr.to(config.device, non_blocking=True)
             hr = hr.to(config.device, non_blocking=True)
 
-            # Mixed precision
-            with amp.autocast():
+            if autocast_on:
+                # Mixed precision
+                with amp.autocast():
+                    sr = model(lr)
+            else:
                 sr = model(lr)
 
             # measure accuracy and record loss

@@ -109,7 +109,12 @@ class Generator(nn.Module):
         # First conv layer.
         self.conv_block1 = nn.Sequential(
             #nn.Conv2d(3, 64, (9, 9), (1, 1), (4, 4)),
-            nn.Conv2d(1, 64, (9, 9), (1, 1), (4, 4)),
+            nn.Conv2d(1, 64, (9, 9), (1, 1), (4, 4)), # for IR image
+            nn.PReLU(),
+        )
+
+        self.conv_block1_2 = nn.Sequential(
+            nn.Conv2d(3, 64, (9, 9), (1, 1), (4, 4)), # For RGB Image
             nn.PReLU(),
         )
 
