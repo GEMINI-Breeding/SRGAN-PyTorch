@@ -147,17 +147,35 @@ class Generator(nn.Module):
         # Initialize neural network weights.
         self._initialize_weights()
 
-    def forward(self, x: Tensor) -> Tensor:
-        return self._forward_impl(x)
+    def forward(self, x, y: Tensor) -> Tensor:
+        return self._forward_impl(x, y) # x: IR, y: RGB
 
     # Support torch.script function.
-    def _forward_impl(self, x: Tensor) -> Tensor:
-        out1 = self.conv_block1(x)
-        out = self.trunk(out1)
-        out2 = self.conv_block2(out)
-        out = torch.add(out1, out2)
-        out = self.upsampling(out)
-        out = self.conv_block3(out)
+    def _forward_impl(self, x, y: Tensor) -> Tensor:
+        if 0:
+            out1 = self.conv_block1(x)
+            out = self.trunk(out1)
+            out2 = self.conv_block2(out)
+            out = torch.add(out1, out2)
+            out = self.upsampling(out)
+            out = self.conv_block3(out)
+        else:
+            # IR
+            out1_x = self.conv_block1(x)
+            out_x = self.trunk(out1_x)
+            out2_x = self.conv_block2(out_x)
+            out_x = torch.add(out1_x, out2_x)
+            out_x = self.upsampling(out_x)
+
+            # RGB
+            out1_y = self.conv_block1_2(y)
+            out_y = self.trunk(out1_y)
+            out2_y = self.conv_block2(out_y)
+            out_y = torch.add(out1_y, out2_y)
+
+            # Merge (Late fusion)
+            out = torch.add(out_x, out_y)
+            out = self.conv_block3(out)
 
         return out
 

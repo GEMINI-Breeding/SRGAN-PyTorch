@@ -66,8 +66,8 @@ if mode == "train_srresnet":
 # ==============================================================================
 if mode == "train_srgan":
     # Dataset address
-    train_image_dir = "/home/lion397/data/datasets/GEMINI/Training_220315/train/IR_HIGH"
-    valid_image_dir = "/home/lion397/data/datasets/GEMINI/Training_220315/val/IR_HIGH"
+    train_image_dir = "/home/lion397/data/datasets/GEMINI/Training_220315/train"
+    valid_image_dir = "/home/lion397/data/datasets/GEMINI/Training_220315/val"
 
     image_size = 96
     batch_size = 16 * 2
@@ -95,8 +95,8 @@ if mode == "train_srgan":
     g_model_betas = (0.9, 0.999)
 
     # MultiStepLR scheduler parameter for SRGAN
-    d_optimizer_step_size = epochs // 2
-    g_optimizer_step_size = epochs // 2
+    d_optimizer_step_size = epochs // 16
+    g_optimizer_step_size = epochs // 16
     d_optimizer_gamma = 0.1
     g_optimizer_gamma = 0.1
 

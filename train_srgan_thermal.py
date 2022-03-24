@@ -249,20 +249,21 @@ def train(discriminator,
     generator.train()
 
     end = time.time()
-    for index, (lr, hr) in enumerate(train_dataloader):
+    for index, (lr, rgb, hr) in enumerate(train_dataloader):
         # measure data loading time
         data_time.update(time.time() - end)
 
         # Send data to designated device
         lr = lr.to(config.device, non_blocking=True)
         hr = hr.to(config.device, non_blocking=True)
+        rgb = rgb.to(config.device, non_blocking=True)
 
         # Set the real sample label to 1, and the false sample label to 0
         real_label = torch.full([lr.size(0), 1], 1.0, dtype=lr.dtype, device=config.device)
         fake_label = torch.full([lr.size(0), 1], 0.0, dtype=lr.dtype, device=config.device)
 
         # Use generators to create super-resolution images
-        sr = generator(lr)
+        sr = generator(lr, rgb)
 
         # Start training discriminator
         # At this stage, the discriminator needs to require a derivative gradient
@@ -371,16 +372,17 @@ def validate(model, valid_dataloader, psnr_criterion, epoch, writer) -> float:
 
     with torch.no_grad():
         end = time.time()
-        for index, (lr, hr) in enumerate(valid_dataloader):
+        for index, (lr, rgb, hr) in enumerate(valid_dataloader):
             lr = lr.to(config.device, non_blocking=True)
             hr = hr.to(config.device, non_blocking=True)
+            rgb = rgb.to(config.device, non_blocking=True)
 
             if autocast_on:
                 # Mixed precision
                 with amp.autocast():
-                    sr = model(lr)
+                    sr = model(lr, rgb)
             else:
-                sr = model(lr)
+                sr = model(lr, rgb)
 
             # measure accuracy and record loss
             psnr = 10. * torch.log10(1. / psnr_criterion(sr, hr))
@@ -393,9 +395,36 @@ def validate(model, valid_dataloader, psnr_criterion, epoch, writer) -> float:
             if index % config.print_frequency == 0:
                 progress.display(index)
 
+
+
         writer.add_scalar("Valid/PSNR", psnres.avg, epoch + 1)
         # Print evaluation indicators.
         print(f"* PSNR: {psnres.avg:4.2f}.\n")
+        
+        if epoch % 10 == 0:
+            # Test Image
+            sample_dataset = ImageDataset(dataroot="/home/lion397/data/datasets/GEMINI/Training_220315/val/",
+                                            image_size=96, upscale_factor=4, mode="train")
+            (low_img, rgb_img, high_img) = sample_dataset.getImage(10)
+
+            with amp.autocast():
+                
+                low_img = torch.FloatTensor(low_img)[None, None,:, :]/255.0
+                rgb_img = rgb_img[:, :, [2, 1, 0]] # swap channel from RGB to BGR
+                rgb_img = torch.FloatTensor(rgb_img).permute(2,0,1).unsqueeze(0)/255.0
+                
+                high_img = torch.FloatTensor(high_img)[None, None,:, :]/255.0
+
+                lr = low_img.to(config.device, non_blocking=True)
+                rgb = rgb_img.to(config.device, non_blocking=True)
+                high_img = high_img.to(config.device, non_blocking=True)
+            
+                sr = model(lr, rgb)
+
+            writer.add_image("Valid/Input_IR",lr.squeeze(0),epoch + 1 )
+            writer.add_image("Valid/Input_RGB",rgb.squeeze(0),epoch + 1 )
+            writer.add_image("Valid/GroundTruth",high_img.squeeze(0),epoch + 1 )
+            writer.add_image("Valid/Output",sr.squeeze(0),epoch + 1 )
 
     return psnres.avg
 
@@ -411,16 +440,16 @@ def validate_ssim(model, valid_dataloader, psnr_criterion, epoch, writer) -> flo
 
     with torch.no_grad():
         end = time.time()
-        for index, (lr, hr) in enumerate(valid_dataloader):
+        for index, (lr, rgb, hr) in enumerate(valid_dataloader):
             lr = lr.to(config.device, non_blocking=True)
             hr = hr.to(config.device, non_blocking=True)
 
             if autocast_on:
                 # Mixed precision
                 with amp.autocast():
-                    sr = model(lr)
+                    sr = model(lr, rgb)
             else:
-                sr = model(lr)
+                sr = model(lr, rgb)
 
             # measure accuracy and record loss
             # psnr = psnr_criterion(sr, hr)
