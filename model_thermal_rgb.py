@@ -162,11 +162,11 @@ class Generator(nn.Module):
         else:
             # IR
             out1_x = self.conv_block1(x)
+            out1_x = self.upsampling(out1_x)
             out_x = self.trunk(out1_x)
             out2_x = self.conv_block2(out_x)
             out_x = torch.add(out1_x, out2_x)
-            out_x = self.upsampling(out_x)
-
+            
             # RGB
             out1_y = self.conv_block1_2(y)
             out_y = self.trunk(out1_y)

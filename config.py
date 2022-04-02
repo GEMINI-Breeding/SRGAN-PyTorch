@@ -31,7 +31,7 @@ upscale_factor = 4
 mode = "train_srgan"
 
 # Experiment name, easy to save weights and log files
-exp_name = "ir_rgb_0327_2"
+exp_name = "ir_rgb_0401_ncc"
 
 # ==============================================================================
 # Training SRResNet model configuration
@@ -70,7 +70,7 @@ if mode == "train_srgan":
     valid_image_dir = "/home/lion397/data/datasets/GEMINI/Training_220315/val"
 
     image_size = 96
-    batch_size = 16 * 4
+    batch_size = 16 * 3
     num_workers = 4
 
     # Incremental training and migration training
@@ -87,7 +87,9 @@ if mode == "train_srgan":
     ssim_weight = 1.0 * 0.2
     pixel_weight = 1.0
     content_weight = 1.0 
-    adversarial_weight = 0.001 * 10
+    adversarial_weight = 0.001
+
+    ncc_weight = 1.0
 
     # Adam optimizer parameter for Discriminator
     d_model_lr = 1e-4
