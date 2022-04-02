@@ -31,7 +31,7 @@ upscale_factor = 4
 mode = "train_srgan"
 
 # Experiment name, easy to save weights and log files
-exp_name = "ir_rgb_0323"
+exp_name = "ir_rgb_0327_2"
 
 # ==============================================================================
 # Training SRResNet model configuration
@@ -70,7 +70,7 @@ if mode == "train_srgan":
     valid_image_dir = "/home/lion397/data/datasets/GEMINI/Training_220315/val"
 
     image_size = 96
-    batch_size = 16 * 2
+    batch_size = 16 * 4
     num_workers = 4
 
     # Incremental training and migration training
@@ -81,12 +81,13 @@ if mode == "train_srgan":
     resume_g_weight = f"results/{exp_name}/g-best.pth"
 
     # Total num epochs
-    epochs = 2000
+    epochs = 8000
 
     # Loss function weight
+    ssim_weight = 1.0 * 0.2
     pixel_weight = 1.0
-    content_weight = 1.0
-    adversarial_weight = 0.001
+    content_weight = 1.0 
+    adversarial_weight = 0.001 * 10
 
     # Adam optimizer parameter for Discriminator
     d_model_lr = 1e-4
@@ -95,8 +96,13 @@ if mode == "train_srgan":
     g_model_betas = (0.9, 0.999)
 
     # MultiStepLR scheduler parameter for SRGAN
-    d_optimizer_step_size = epochs // 16
-    g_optimizer_step_size = epochs // 16
+    if 1:
+        d_optimizer_step_size = epochs // 4
+        g_optimizer_step_size = epochs // 4
+    else:
+        d_optimizer_step_size = 140
+        g_optimizer_step_size = 140
+
     d_optimizer_gamma = 0.1
     g_optimizer_gamma = 0.1
 
@@ -110,6 +116,7 @@ if mode == "valid":
     # Test data address
     if 1:
         lr_dir = f"/home/lion397/data/datasets/GEMINI/Training_220315/val/IR_LOW"
+        rgb_dir = f"/home/lion397/data/datasets/GEMINI/Training_220315/val/RGB"
         sr_dir = f"results/test/{exp_name}"
         hr_dir = f"/home/lion397/data/datasets/GEMINI/Training_220315/val/IR_HIGH"
     else:

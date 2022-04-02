@@ -27,7 +27,7 @@ import config
 from thermal_dataset import ThermalImageDataset as ImageDataset
 from model_thermal_rgb import Discriminator, Generator, ContentLoss
 
-from ssim import ssim, ssim_for_loss
+from ssim import ssim
 
 autocast_on = False
 
@@ -41,7 +41,7 @@ def main():
     print("Build SRGAN model successfully.")
 
     print("Define all loss functions...")
-    psnr_criterion, pixel_criterion, content_criterion, adversarial_criterion = define_loss()
+    psnr_criterion, pixel_criterion, content_criterion, adversarial_criterion, ssim_criterion = define_loss()
     print("Define all loss functions successfully.")
 
     print("Define all optimizer functions...")
@@ -75,10 +75,12 @@ def main():
 
     print("Start train SRGAN model.")
     for epoch in range(config.start_epoch, config.epochs):
+        print(f"Epoch {epoch}")
         train(discriminator,
               generator,
               train_dataloader,
               psnr_criterion,
+              ssim_criterion, 
               pixel_criterion,
               content_criterion,
               adversarial_criterion,
@@ -89,12 +91,15 @@ def main():
               writer)
 
         #psnr = validate_ssim(generator, valid_dataloader, psnr_criterion, epoch, writer)
-        psnr = validate(generator, valid_dataloader, psnr_criterion, epoch, writer)
+        psnr = validate(generator, valid_dataloader, psnr_criterion, ssim_criterion, epoch, writer)
         # Automatically save the model with the highest index
         is_best = psnr > best_psnr
         best_psnr = max(psnr, best_psnr)
-        torch.save(discriminator.state_dict(), os.path.join(samples_dir, f"d_epoch_{epoch + 1}.pth"))
-        torch.save(generator.state_dict(), os.path.join(samples_dir, f"g_epoch_{epoch + 1}.pth"))
+        
+        if epoch % 100 == 0:
+            torch.save(discriminator.state_dict(), os.path.join(samples_dir, f"d_epoch_{epoch + 1}.pth"))
+            torch.save(generator.state_dict(), os.path.join(samples_dir, f"g_epoch_{epoch + 1}.pth"))
+            
         if is_best:
             torch.save(discriminator.state_dict(), os.path.join(results_dir, "d-best.pth"))
             torch.save(generator.state_dict(), os.path.join(results_dir, f"g-best.pth"))
@@ -149,7 +154,7 @@ def build_model() -> nn.Module:
     return discriminator, generator
 
 
-def define_loss() -> [nn.MSELoss, nn.MSELoss, ContentLoss, nn.BCEWithLogitsLoss]:
+def define_loss() -> [nn.MSELoss, nn.MSELoss, ContentLoss, ssim, nn.BCEWithLogitsLoss]:
     """Defines all loss functions
 
     Returns:
@@ -157,12 +162,12 @@ def define_loss() -> [nn.MSELoss, nn.MSELoss, ContentLoss, nn.BCEWithLogitsLoss]
 
     """
     psnr_criterion = nn.MSELoss().to(config.device)
-    #psnr_criterion = ssim
     pixel_criterion = nn.MSELoss().to(config.device)
     content_criterion = ContentLoss().to(config.device)
     adversarial_criterion = nn.BCEWithLogitsLoss().to(config.device)
+    ssim_criterion = ssim
 
-    return psnr_criterion, pixel_criterion, content_criterion, adversarial_criterion
+    return psnr_criterion, pixel_criterion, content_criterion, adversarial_criterion, ssim_criterion
 
 
 def define_optimizer(discriminator: nn.Module, generator: nn.Module) -> [optim.Adam, optim.Adam]:
@@ -218,6 +223,7 @@ def train(discriminator,
           generator,
           train_dataloader,
           psnr_criterion,
+          ssim_criterion,
           pixel_criterion,
           content_criterion,
           adversarial_criterion,
@@ -250,6 +256,7 @@ def train(discriminator,
 
     end = time.time()
     for index, (lr, rgb, hr) in enumerate(train_dataloader):
+        
         # measure data loading time
         data_time.update(time.time() - end)
 
@@ -316,15 +323,21 @@ def train(discriminator,
                 output = discriminator(sr)
                 pixel_loss = config.pixel_weight * pixel_criterion(sr, hr.detach())
                 content_loss = config.content_weight * content_criterion(sr, hr.detach())
-                adversarial_loss = config.adversarial_weight * adversarial_criterion(output, real_label)
+                adversarial_loss = config.adversarial_weight * adversarial_criterion(output, real_label) 
         else:
             output = discriminator(sr)
-            pixel_loss = config.pixel_weight * pixel_criterion(sr, hr.detach())
+            pixel_loss =  config.pixel_weight * pixel_criterion(sr, hr.detach())
             content_loss = config.content_weight * content_criterion(sr, hr.detach())
             adversarial_loss = config.adversarial_weight * adversarial_criterion(output, real_label)
 
+        ssim_loss = config.ssim_weight * (-torch.log10(ssim_criterion(sr, hr.detach())))
+
         # Count discriminator total loss
-        g_loss = pixel_loss + content_loss + adversarial_loss
+        g_loss = (pixel_loss
+                  + ssim_loss
+                  + content_loss
+                  + adversarial_loss)
+
         # Gradient zoom
         scaler.scale(g_loss).backward()
         # Update generator parameters
@@ -354,6 +367,7 @@ def train(discriminator,
         writer.add_scalar("Train/D_Loss", d_loss.item(), iters)
         writer.add_scalar("Train/G_Loss", g_loss.item(), iters)
         writer.add_scalar("Train/Pixel_Loss", pixel_loss.item(), iters)
+        writer.add_scalar("Train/SSIM_Loss", ssim_loss.item(), iters)
         writer.add_scalar("Train/Content_Loss", content_loss.item(), iters)
         writer.add_scalar("Train/Adversarial_Loss", adversarial_loss.item(), iters)
         writer.add_scalar("Train/D(HR)_Probability", d_hr_probability.item(), iters)
@@ -362,9 +376,10 @@ def train(discriminator,
             progress.display(index)
 
 
-def validate(model, valid_dataloader, psnr_criterion, epoch, writer) -> float:
+def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, epoch, writer) -> float:
     batch_time = AverageMeter("Time", ":6.3f")
     psnres = AverageMeter("PSNR", ":4.2f")
+    ssimres = AverageMeter("SSIM", ":4.2f")
     progress = ProgressMeter(len(valid_dataloader), [batch_time, psnres], prefix="Valid: ")
 
     # Put the generator in verification mode.
@@ -388,6 +403,9 @@ def validate(model, valid_dataloader, psnr_criterion, epoch, writer) -> float:
             psnr = 10. * torch.log10(1. / psnr_criterion(sr, hr))
             psnres.update(psnr.item(), hr.size(0))
 
+            ssim_val = ssim_criterion(sr, hr)
+            ssimres.update(ssim_val.item(), hr.size(0))
+
             # measure elapsed time
             batch_time.update(time.time() - end)
             end = time.time()
@@ -396,10 +414,13 @@ def validate(model, valid_dataloader, psnr_criterion, epoch, writer) -> float:
                 progress.display(index)
 
 
-
+        # Tensorboard
         writer.add_scalar("Valid/PSNR", psnres.avg, epoch + 1)
+        writer.add_scalar("Valid/SSIM", ssimres.avg, epoch + 1)
+
         # Print evaluation indicators.
-        print(f"* PSNR: {psnres.avg:4.2f}.\n")
+        print(f"* PSNR: {psnres.avg:4.2f}")
+        print(f"* SSIM: {ssimres.avg:4.2f}")
         
         if epoch % 10 == 0:
             # Test Image
@@ -420,10 +441,13 @@ def validate(model, valid_dataloader, psnr_criterion, epoch, writer) -> float:
                 high_img = high_img.to(config.device, non_blocking=True)
             
                 sr = model(lr, rgb)
-
-            writer.add_image("Valid/Input_IR",lr.squeeze(0),epoch + 1 )
-            writer.add_image("Valid/Input_RGB",rgb.squeeze(0),epoch + 1 )
-            writer.add_image("Valid/GroundTruth",high_img.squeeze(0),epoch + 1 )
+                
+            if epoch == 0:
+                # Write once
+                writer.add_image("Valid/Input_IR",lr.squeeze(0),epoch + 1 )
+                writer.add_image("Valid/Input_RGB",rgb.squeeze(0),epoch + 1 )
+                writer.add_image("Valid/GroundTruth",high_img.squeeze(0),epoch + 1 )
+            # Write everytime
             writer.add_image("Valid/Output",sr.squeeze(0),epoch + 1 )
 
     return psnres.avg
