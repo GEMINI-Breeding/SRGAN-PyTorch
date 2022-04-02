@@ -140,6 +140,16 @@ class Generator(nn.Module):
             nn.PReLU(),
         )
 
+        # Upscale conv block.
+        self.upsampling_img = nn.Sequential(
+            nn.Conv2d(1, 4, (3, 3), (1, 1), (1, 1)),
+            nn.PixelShuffle(2),
+            nn.PReLU(),
+            nn.Conv2d(1, 4, (3, 3), (1, 1), (1, 1)),
+            nn.PixelShuffle(2),
+            nn.PReLU(),
+        )
+
         # Output layer.
         #self.conv_block3 = nn.Conv2d(64, 3, (9, 9), (1, 1), (4, 4))
         self.conv_block3 = nn.Conv2d(64, 1, (9, 9), (1, 1), (4, 4))
@@ -161,8 +171,13 @@ class Generator(nn.Module):
             out = self.conv_block3(out)
         else:
             # IR
-            out1_x = self.conv_block1(x)
-            out1_x = self.upsampling(out1_x)
+            if 0:
+                x = self.upsampling_img(x) # Upsample first to make balance RGB and Thermal Block
+                out1_x = self.conv_block1(x)
+            else:
+                x = self.conv_block1(x) 
+                out1_x = self.upsampling(x)
+                
             out_x = self.trunk(out1_x)
             out2_x = self.conv_block2(out_x)
             out_x = torch.add(out1_x, out2_x)

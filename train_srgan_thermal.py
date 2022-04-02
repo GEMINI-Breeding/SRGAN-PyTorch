@@ -28,11 +28,25 @@ from thermal_dataset import ThermalImageDataset as ImageDataset
 from model_thermal_rgb import Discriminator, Generator, ContentLoss
 
 from ssim import ssim
-from pytorch_similarity.torch_similarity.modules import NormalizedCrossCorrelation
+from pytorch_similarity.torch_similarity.modules import NormalizedCrossCorrelation, GradientDifference2d
 
+import signal
+import sys
 autocast_on = False
 
+interrupted = False
+def handler(signum, _):
+    print(f'Application is terminated by {signal.Signals(signum).name}\n')
+    global interrupted
+    interrupted = True
+
 def main():
+
+    signal.signal(signal.SIGINT, handler)
+    signal.signal(signal.SIGQUIT, handler)
+    signal.signal(signal.SIGABRT, handler)
+    signal.signal(signal.SIGTERM, handler)
+
     print("Load train dataset and valid dataset...")
     train_dataloader, valid_dataloader = load_dataset()
     print("Load train dataset and valid dataset successfully.")
@@ -42,7 +56,7 @@ def main():
     print("Build SRGAN model successfully.")
 
     print("Define all loss functions...")
-    psnr_criterion, pixel_criterion, content_criterion, adversarial_criterion, ssim_criterion, ncc_criterion = define_loss()
+    psnr_criterion, pixel_criterion, content_criterion, adversarial_criterion, ssim_criterion, gd_criterion = define_loss()
     print("Define all loss functions successfully.")
 
     print("Define all optimizer functions...")
@@ -82,7 +96,7 @@ def main():
               train_dataloader,
               psnr_criterion,
               ssim_criterion,
-              ncc_criterion,
+              gd_criterion,
               pixel_criterion,
               content_criterion,
               adversarial_criterion,
@@ -93,7 +107,7 @@ def main():
               writer)
 
         #psnr = validate_ssim(generator, valid_dataloader, psnr_criterion, epoch, writer)
-        psnr = validate(generator, valid_dataloader, psnr_criterion, ssim_criterion, ncc_criterion, epoch, writer)
+        psnr = validate(generator, valid_dataloader, psnr_criterion, ssim_criterion, gd_criterion, epoch, writer)
         # Automatically save the model with the highest index
         is_best = psnr > best_psnr
         best_psnr = max(psnr, best_psnr)
@@ -110,6 +124,9 @@ def main():
         # Update LR
         d_scheduler.step()
         g_scheduler.step()
+
+        if interrupted:
+            break
 
     # Save the generator weight under the last Epoch in this stage
     torch.save(discriminator.state_dict(), os.path.join(results_dir, "d-last.pth"))
@@ -157,7 +174,7 @@ def build_model() -> nn.Module:
     return discriminator, generator
 
 
-def define_loss() -> [nn.MSELoss, nn.MSELoss, ContentLoss, ssim, nn.BCEWithLogitsLoss, NormalizedCrossCorrelation]:
+def define_loss() -> [nn.MSELoss, nn.MSELoss, ContentLoss, ssim, nn.BCEWithLogitsLoss, GradientDifference2d]:
     """Defines all loss functions
 
     Returns:
@@ -169,9 +186,10 @@ def define_loss() -> [nn.MSELoss, nn.MSELoss, ContentLoss, ssim, nn.BCEWithLogit
     content_criterion = ContentLoss().to(config.device)
     adversarial_criterion = nn.BCEWithLogitsLoss().to(config.device)
     ssim_criterion = ssim
-    ncc_criterion = NormalizedCrossCorrelation(return_map=True)
+    #gd_criterion = NormalizedCrossCorrelation(return_map=True)
+    gd_criterion = GradientDifference2d(return_map=True).to(config.device)
 
-    return psnr_criterion, pixel_criterion, content_criterion, adversarial_criterion, ssim_criterion, ncc_criterion
+    return psnr_criterion, pixel_criterion, content_criterion, adversarial_criterion, ssim_criterion, gd_criterion
 
 
 def define_optimizer(discriminator: nn.Module, generator: nn.Module) -> [optim.Adam, optim.Adam]:
@@ -228,7 +246,7 @@ def train(discriminator,
           train_dataloader,
           psnr_criterion,
           ssim_criterion,
-          ncc_criterion,
+          gd_criterion,
           pixel_criterion,
           content_criterion,
           adversarial_criterion,
@@ -335,13 +353,13 @@ def train(discriminator,
             content_loss = config.content_weight * content_criterion(sr, hr.detach())
             adversarial_loss = config.adversarial_weight * adversarial_criterion(output, real_label)
 
-        ssim_loss = config.ssim_weight * (-torch.log10(ssim_criterion(sr, hr.detach())))
-        ncc_val, _ = ncc_criterion(sr, hr.detach())
-        ncc_loss = config.ncc_weight * (torch.exp(-ncc_val))
+        # ssim_loss = config.ssim_weight * (-torch.log10(ssim_criterion(sr, hr.detach())))
+        gd_val, _ = gd_criterion(sr, hr.detach())
+        gd_loss = config.gd_weight * gd_val
 
         # Count discriminator total loss
         g_loss = (pixel_loss
-                  + ncc_loss
+                  + gd_loss
                   + content_loss
                   + adversarial_loss)
 
@@ -374,8 +392,8 @@ def train(discriminator,
         writer.add_scalar("Train/D_Loss", d_loss.item(), iters)
         writer.add_scalar("Train/G_Loss", g_loss.item(), iters)
         writer.add_scalar("Train/Pixel_Loss", pixel_loss.item(), iters)
-        writer.add_scalar("Train/SSIM_Loss", ssim_loss.item(), iters)
-        writer.add_scalar("Train/NCC_Loss", ncc_loss.item(), iters)
+        #writer.add_scalar("Train/SSIM_Loss", ssim_loss.item(), iters)
+        writer.add_scalar("Train/GD_Loss", gd_loss.item(), iters)
         writer.add_scalar("Train/Content_Loss", content_loss.item(), iters)
         writer.add_scalar("Train/Adversarial_Loss", adversarial_loss.item(), iters)
         writer.add_scalar("Train/D(HR)_Probability", d_hr_probability.item(), iters)
@@ -384,11 +402,11 @@ def train(discriminator,
             progress.display(index)
 
 
-def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, ncc_criterion, epoch, writer) -> float:
+def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, gd_criterion, epoch, writer) -> float:
     batch_time = AverageMeter("Time", ":6.3f")
     psnres = AverageMeter("PSNR", ":4.2f")
     ssimres = AverageMeter("SSIM", ":4.2f")
-    nccres = AverageMeter("NCC", ":4.2f")
+    gdres = AverageMeter("GD", ":4.2f")
     progress = ProgressMeter(len(valid_dataloader), [batch_time, psnres], prefix="Valid: ")
 
     # Put the generator in verification mode.
@@ -415,8 +433,8 @@ def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, ncc_criter
             ssim_val = ssim_criterion(sr, hr)
             ssimres.update(ssim_val.item(), hr.size(0))
 
-            ncc_val, _ = ncc_criterion(sr, hr.detach())
-            nccres.update(ncc_val.item(), hr.size(0))
+            gd_val, _ = gd_criterion(sr, hr.detach())
+            gdres.update(gd_val.item(), hr.size(0))
 
             # measure elapsed time
             batch_time.update(time.time() - end)
@@ -429,12 +447,12 @@ def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, ncc_criter
         # Tensorboard
         writer.add_scalar("Valid/PSNR", psnres.avg, epoch + 1)
         writer.add_scalar("Valid/SSIM", ssimres.avg, epoch + 1)
-        writer.add_scalar("Valid/NCC", nccres.avg, epoch + 1)
+        writer.add_scalar("Valid/GD", gdres.avg, epoch + 1)
 
         # Print evaluation indicators.
         print(f"* PSNR: {psnres.avg:4.2f}")
         print(f"* SSIM: {ssimres.avg:4.2f}")
-        print(f"* NCC: {nccres.avg:4.2f}")
+        print(f"* GD: {gdres.avg:4.2f}")
         
         if epoch % 10 == 0:
             # Test Image
@@ -551,3 +569,4 @@ class ProgressMeter(object):
 
 if __name__ == "__main__":
     main()
+

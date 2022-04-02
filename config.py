@@ -12,9 +12,10 @@
 # limitations under the License.
 # ==============================================================================
 """Realize the parameter configuration function of dataset, model, training and verification code."""
+from numpy import Infinity
 import torch
 from torch.backends import cudnn as cudnn
-
+import sys
 # ==============================================================================
 # General configuration
 # ==============================================================================
@@ -31,7 +32,7 @@ upscale_factor = 4
 mode = "train_srgan"
 
 # Experiment name, easy to save weights and log files
-exp_name = "ir_rgb_0401_ncc"
+exp_name = "ir_rgb_0402_gd_lowlr"
 
 # ==============================================================================
 # Training SRResNet model configuration
@@ -81,19 +82,17 @@ if mode == "train_srgan":
     resume_g_weight = f"results/{exp_name}/g-best.pth"
 
     # Total num epochs
-    epochs = 8000
+    epochs = sys.maxsize # Very large number
 
     # Loss function weight
-    ssim_weight = 1.0 * 0.2
     pixel_weight = 1.0
     content_weight = 1.0 
     adversarial_weight = 0.001
-
-    ncc_weight = 1.0
+    gd_weight = 1.0
 
     # Adam optimizer parameter for Discriminator
-    d_model_lr = 1e-4
-    g_model_lr = 1e-4
+    d_model_lr = 1e-5
+    g_model_lr = 1e-5
     d_model_betas = (0.9, 0.999)
     g_model_betas = (0.9, 0.999)
 
