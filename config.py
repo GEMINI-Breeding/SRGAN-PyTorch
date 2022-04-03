@@ -32,7 +32,7 @@ upscale_factor = 4
 mode = "train_srgan"
 
 # Experiment name, easy to save weights and log files
-exp_name = "ir_rgb_0402_gd_lowlr"
+exp_name = "ir_rgb_0403_gd_autocastoff"
 
 # ==============================================================================
 # Training SRResNet model configuration
@@ -86,13 +86,13 @@ if mode == "train_srgan":
 
     # Loss function weight
     pixel_weight = 1.0
-    content_weight = 1.0 
-    adversarial_weight = 0.01
-    gd_weight = 1.0
+    content_weight = 1.0
+    adversarial_weight = 0.001
+    similaity_weight = 1.0
 
     # Adam optimizer parameter for Discriminator
-    d_model_lr = 1e-5
-    g_model_lr = 1e-5
+    d_model_lr = 1e-4
+    g_model_lr = 1e-4
     d_model_betas = (0.9, 0.999)
     g_model_betas = (0.9, 0.999)
 

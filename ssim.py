@@ -2,7 +2,7 @@ import torch
 import torch.nn.functional as F 
 import math
 import random
-
+from torch.cuda import amp
 
 def gaussian(window_size, sigma):
     """

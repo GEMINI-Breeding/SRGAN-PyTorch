@@ -28,7 +28,7 @@ from thermal_dataset import ThermalImageDataset as ImageDataset
 from model_thermal_rgb import Discriminator, Generator, ContentLoss
 
 from ssim import ssim
-from pytorch_similarity.torch_similarity.modules import NormalizedCrossCorrelation, GradientDifference2d
+from pytorch_similarity.torch_similarity.modules import NormalizedCrossCorrelation, GradientDifference2d, GradientCorrelation2d
 
 import signal
 import sys
@@ -56,7 +56,7 @@ def main():
     print("Build SRGAN model successfully.")
 
     print("Define all loss functions...")
-    psnr_criterion, pixel_criterion, content_criterion, adversarial_criterion, ssim_criterion, gd_criterion = define_loss()
+    psnr_criterion, pixel_criterion, content_criterion, adversarial_criterion, ssim_criterion, similaity_criterion = define_loss()
     print("Define all loss functions successfully.")
 
     print("Define all optimizer functions...")
@@ -96,7 +96,7 @@ def main():
               train_dataloader,
               psnr_criterion,
               ssim_criterion,
-              gd_criterion,
+              similaity_criterion,
               pixel_criterion,
               content_criterion,
               adversarial_criterion,
@@ -107,7 +107,7 @@ def main():
               writer)
 
         #psnr = validate_ssim(generator, valid_dataloader, psnr_criterion, epoch, writer)
-        psnr = validate(generator, valid_dataloader, psnr_criterion, ssim_criterion, gd_criterion, epoch, writer)
+        psnr = validate(generator, valid_dataloader, psnr_criterion, ssim_criterion, similaity_criterion, epoch, writer)
         # Automatically save the model with the highest index
         is_best = psnr > best_psnr
         best_psnr = max(psnr, best_psnr)
@@ -186,10 +186,11 @@ def define_loss() -> [nn.MSELoss, nn.MSELoss, ContentLoss, ssim, nn.BCEWithLogit
     content_criterion = ContentLoss().to(config.device)
     adversarial_criterion = nn.BCEWithLogitsLoss().to(config.device)
     ssim_criterion = ssim
-    #gd_criterion = NormalizedCrossCorrelation(return_map=True)
-    gd_criterion = GradientDifference2d(return_map=True).to(config.device)
+    #similaity_criterion = NormalizedCrossCorrelation(return_map=True).to(config.device)
+    #similaity_criterion = GradientCorrelation2d(return_map=True).to(config.device)
+    similaity_criterion = GradientDifference2d(return_map=True).to(config.device)
 
-    return psnr_criterion, pixel_criterion, content_criterion, adversarial_criterion, ssim_criterion, gd_criterion
+    return psnr_criterion, pixel_criterion, content_criterion, adversarial_criterion, ssim_criterion, similaity_criterion
 
 
 def define_optimizer(discriminator: nn.Module, generator: nn.Module) -> [optim.Adam, optim.Adam]:
@@ -246,7 +247,7 @@ def train(discriminator,
           train_dataloader,
           psnr_criterion,
           ssim_criterion,
-          gd_criterion,
+          similaity_criterion,
           pixel_criterion,
           content_criterion,
           adversarial_criterion,
@@ -354,12 +355,15 @@ def train(discriminator,
             adversarial_loss = config.adversarial_weight * adversarial_criterion(output, real_label)
 
         # ssim_loss = config.ssim_weight * (-torch.log10(ssim_criterion(sr, hr.detach())))
-        gd_val, _ = gd_criterion(sr, hr.detach())
-        gd_loss = config.gd_weight * gd_val
+        similaity_val, _ = similaity_criterion(sr, hr.detach())
+        if 0:
+            similaity_loss = config.similaity_weight * (1 - similaity_val) # Loss function for NCC
+        else:
+            similaity_loss = config.similaity_weight * similaity_val # Loss function for Gradient Differnce
 
         # Count discriminator total loss
         g_loss = (pixel_loss
-                  + gd_loss
+                  + similaity_loss
                   + content_loss
                   + adversarial_loss)
 
@@ -393,7 +397,7 @@ def train(discriminator,
         writer.add_scalar("Train/G_Loss", g_loss.item(), iters)
         writer.add_scalar("Train/Pixel_Loss", pixel_loss.item(), iters)
         #writer.add_scalar("Train/SSIM_Loss", ssim_loss.item(), iters)
-        writer.add_scalar("Train/GD_Loss", gd_loss.item(), iters)
+        writer.add_scalar("Train/similaity_Loss", similaity_loss.item(), iters)
         writer.add_scalar("Train/Content_Loss", content_loss.item(), iters)
         writer.add_scalar("Train/Adversarial_Loss", adversarial_loss.item(), iters)
         writer.add_scalar("Train/D(HR)_Probability", d_hr_probability.item(), iters)
@@ -402,11 +406,11 @@ def train(discriminator,
             progress.display(index)
 
 
-def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, gd_criterion, epoch, writer) -> float:
+def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, similaity_criterion, epoch, writer) -> float:
     batch_time = AverageMeter("Time", ":6.3f")
     psnres = AverageMeter("PSNR", ":4.2f")
     ssimres = AverageMeter("SSIM", ":4.2f")
-    gdres = AverageMeter("GD", ":4.2f")
+    similaityres = AverageMeter("Similaity", ":4.2f")
     progress = ProgressMeter(len(valid_dataloader), [batch_time, psnres], prefix="Valid: ")
 
     # Put the generator in verification mode.
@@ -430,11 +434,17 @@ def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, gd_criteri
             psnr = 10. * torch.log10(1. / psnr_criterion(sr, hr))
             psnres.update(psnr.item(), hr.size(0))
 
-            ssim_val = ssim_criterion(sr, hr)
-            ssimres.update(ssim_val.item(), hr.size(0))
+            if autocast_on:
+                # Mixed precision
+                with amp.autocast():
+                    ssim_val = ssim_criterion(sr, hr)
+                    similaity_val, _ = similaity_criterion(sr, hr.detach())
+            else:
+                ssim_val = ssim_criterion(sr, hr)
+                similaity_val, _ = similaity_criterion(sr, hr.detach())
 
-            gd_val, _ = gd_criterion(sr, hr.detach())
-            gdres.update(gd_val.item(), hr.size(0))
+            ssimres.update(ssim_val.item(), hr.size(0))
+            similaityres.update(similaity_val.item(), hr.size(0))
 
             # measure elapsed time
             batch_time.update(time.time() - end)
@@ -447,12 +457,12 @@ def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, gd_criteri
         # Tensorboard
         writer.add_scalar("Valid/PSNR", psnres.avg, epoch + 1)
         writer.add_scalar("Valid/SSIM", ssimres.avg, epoch + 1)
-        writer.add_scalar("Valid/GD", gdres.avg, epoch + 1)
+        writer.add_scalar("Valid/Similaity", similaityres.avg, epoch + 1)
 
         # Print evaluation indicators.
         print(f"* PSNR: {psnres.avg:4.2f}")
         print(f"* SSIM: {ssimres.avg:4.2f}")
-        print(f"* GD: {gdres.avg:4.2f}")
+        print(f"* Similaity: {similaityres.avg:4.2f}")
         
         if epoch % 10 == 0:
             # Test Image

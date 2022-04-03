@@ -171,7 +171,7 @@ class Generator(nn.Module):
             out = self.conv_block3(out)
         else:
             # IR
-            if 0:
+            if 1:
                 x = self.upsampling_img(x) # Upsample first to make balance RGB and Thermal Block
                 out1_x = self.conv_block1(x)
             else:
