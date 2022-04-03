@@ -87,7 +87,7 @@ if mode == "train_srgan":
     # Loss function weight
     pixel_weight = 1.0
     content_weight = 1.0 
-    adversarial_weight = 0.001
+    adversarial_weight = 0.01
     gd_weight = 1.0
 
     # Adam optimizer parameter for Discriminator
