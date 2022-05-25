@@ -108,14 +108,13 @@ class Generator(nn.Module):
         super(Generator, self).__init__()
         # First conv layer.
         self.conv_block1 = nn.Sequential(
-            #nn.Conv2d(3, 64, (9, 9), (1, 1), (4, 4)),
-            nn.Conv2d(1, 64, (9, 9), (1, 1), (4, 4)), # for IR image
-            nn.PReLU(),
+            nn.Conv2d(1, 64, (3, 3), (1, 1), (1, 1)), # for IR image (1, 64, 3)
+            nn.ELU()
         )
 
         self.conv_block1_2 = nn.Sequential(
-            nn.Conv2d(3, 64, (9, 9), (1, 1), (4, 4)), # For RGB Image
-            nn.PReLU(),
+            nn.Conv2d(3, 64, (3, 3), (1, 1), (1, 1)), # For RGB Image (3, 64, 3)
+            nn.ELU(),
         )
 
         # Features trunk blocks.
@@ -123,6 +122,12 @@ class Generator(nn.Module):
         for _ in range(16):
             trunk.append(ResidualConvBlock(64))
         self.trunk = nn.Sequential(*trunk)
+
+
+        resBlock = []
+        for _ in range(1):
+            resBlock.append(ResidualConvBlock(64))
+        self.resBlock = nn.Sequential(*resBlock)
 
         # Second conv layer.
         self.conv_block2 = nn.Sequential(
@@ -150,10 +155,22 @@ class Generator(nn.Module):
             nn.PReLU(),
         )
 
+
         # Output layer.
         #self.conv_block3 = nn.Conv2d(64, 3, (9, 9), (1, 1), (4, 4))
-        self.conv_block3 = nn.Conv2d(64, 1, (9, 9), (1, 1), (4, 4))
-
+        self.conv_block3 = nn.Sequential(
+            nn.Conv2d(64, 64, (1, 1), (1, 1), (0, 0)),
+            nn.ELU(),
+            nn.Conv2d(64, 32, (3, 3), (1, 1), (1, 1)),
+            nn.ELU(),
+            nn.Conv2d(32, 32, (3, 3), (1, 1), (1, 1)),
+            nn.ELU(),
+            nn.Conv2d(32, 32, (3, 3), (1, 1), (1, 1)),
+            nn.ELU(),
+            nn.Conv2d(32, 32, (3, 3), (1, 1), (1, 1)),
+            nn.ELU(),
+            nn.Conv2d(32, 1, (1, 1), (1, 1), (0, 0))
+        )
         # Initialize neural network weights.
         self._initialize_weights()
 
@@ -171,26 +188,29 @@ class Generator(nn.Module):
             out = self.conv_block3(out)
         else:
             # IR
-            if 1:
-                x = self.upsampling_img(x) # Upsample first to make balance RGB and Thermal Block
-                out1_x = self.conv_block1(x)
-            else:
-                x = self.conv_block1(x) 
-                out1_x = self.upsampling(x)
-                
-            out_x = self.trunk(out1_x)
-            out2_x = self.conv_block2(out_x)
-            out_x = torch.add(out1_x, out2_x)
-            
+            x = self.upsampling_img(x) # Upsample first to make balance RGB and Thermal Block
+            out1_x = self.conv_block1(x)
+            out_x = self.resBlock(out1_x)
+
             # RGB
             out1_y = self.conv_block1_2(y)
-            out_y = self.trunk(out1_y)
-            out2_y = self.conv_block2(out_y)
-            out_y = torch.add(out1_y, out2_y)
 
-            # Merge (Late fusion)
-            out = torch.add(out_x, out_y)
-            out = self.conv_block3(out)
+            out_y = self.resBlock(out1_y)
+            out_y = torch.add(out1_y, out_y)
+            out1_y_2 = self.resBlock(out_y)
+            out1_y_2 = torch.add(out1_y_2, out_y)
+
+            out1_y_2 = torch.add(out1_y_2, out1_y)
+
+            # Merge
+            out = torch.add(out_x, out1_y_2)
+            out_res = self.resBlock(out)
+            out_res = torch.add(out_res, out)
+            out_res_1 = self.resBlock(out_res)
+            out_res_1 = torch.add(out_res_1, out_res)
+            out_res_1 = torch.add(out_res_1, out1_x)
+            
+            out = self.conv_block3(out_res_1)
 
         return out
 
@@ -202,8 +222,7 @@ class Generator(nn.Module):
                     nn.init.constant_(module.bias, 0)
             elif isinstance(module, nn.BatchNorm2d):
                 nn.init.constant_(module.weight, 1)
-
-
+                
 class ContentLoss(nn.Module):
     """Constructs a content loss function based on the VGG19 network.
     Using high-level feature mapping layers from the latter layers will focus more on the texture content of the image.

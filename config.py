@@ -32,7 +32,7 @@ upscale_factor = 4
 mode = "train_srgan"
 
 # Experiment name, easy to save weights and log files
-exp_name = "ir_rgb_0403_gd_autocastoff"
+exp_name = "ir_rgb_0519_TIGAN"
 
 # ==============================================================================
 # Training SRResNet model configuration
@@ -71,13 +71,13 @@ if mode == "train_srgan":
     valid_image_dir = "/home/lion397/data/datasets/GEMINI/Training_220315/val"
 
     image_size = 96
-    batch_size = 16 * 3
-    num_workers = 4
+    batch_size = 16 * 12
+    num_workers = 2 # more than 4 is slower
 
     # Incremental training and migration training
-    resume = False
+    resume = True
     strict = False
-    start_epoch = 0
+    start_epoch = 54749
     resume_d_weight = f"results/{exp_name}/d-best.pth"
     resume_g_weight = f"results/{exp_name}/g-best.pth"
 
@@ -85,21 +85,28 @@ if mode == "train_srgan":
     epochs = sys.maxsize # Very large number
 
     # Loss function weight
-    pixel_weight = 1.0
-    content_weight = 1.0
-    adversarial_weight = 0.001
-    similaity_weight = 1.0
+    if 0:
+        pixel_weight = 1.0
+        content_weight = 1.0
+        adversarial_weight = 0.001
+        similaity_weight = 1.0
+    else:
+        pixel_weight = 1.0
+        content_weight = 0
+        #adversarial_weight = 0.001
+        adversarial_weight = 0.002
+        similaity_weight = 0.1
 
     # Adam optimizer parameter for Discriminator
-    d_model_lr = 1e-4
-    g_model_lr = 1e-4
+    d_model_lr = 1e-6 # Defalut 1e-4
+    g_model_lr = 1e-6
     d_model_betas = (0.9, 0.999)
     g_model_betas = (0.9, 0.999)
 
     # MultiStepLR scheduler parameter for SRGAN
     if 1:
-        d_optimizer_step_size = epochs // 4
-        g_optimizer_step_size = epochs // 4
+        d_optimizer_step_size = 2000
+        g_optimizer_step_size = 2000
     else:
         d_optimizer_step_size = 140
         g_optimizer_step_size = 140

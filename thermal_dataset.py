@@ -21,7 +21,6 @@ from PIL import Image
 from torch import Tensor
 from torch.utils.data import Dataset
 from torchvision import transforms
-from torchvision.transforms.functional import InterpolationMode as IMode
 import torchvision.transforms.functional as TF
 
 import imgproc
@@ -101,7 +100,7 @@ class ThermalImageDataset(Dataset):
 
 
             if 0:
-                self.lr_transforms = transforms.Resize(image_size // upscale_factor, interpolation=IMode.BICUBIC, antialias=True)
+                self.lr_transforms = transforms.Resize(image_size // upscale_factor)
             else:
                 self.lr_transforms = transforms.Compose([
                     transforms.ToPILImage(),

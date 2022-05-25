@@ -28,8 +28,8 @@ from thermal_dataset import ThermalImageDataset as ImageDataset
 from model_thermal_rgb import Discriminator, Generator, ContentLoss
 
 from ssim import ssim
-from pytorch_similarity.torch_similarity.modules import NormalizedCrossCorrelation, GradientDifference2d, GradientCorrelation2d
-
+from pytorch_similarity.torch_similarity.modules import GradientDifference2d, GradientCorrelation2d
+from pytorch_similarity.torch_similarity.modules import NormalizedCrossCorrelationLoss, NormalizedCrossCorrelation
 import signal
 import sys
 autocast_on = False
@@ -122,8 +122,10 @@ def main():
             torch.save(generator.state_dict(), os.path.join(results_dir, f"g-best.pth"))
 
         # Update LR
+ 
         d_scheduler.step()
         g_scheduler.step()
+        writer.add_scalar("Train/lr", get_lr(g_scheduler), epoch)
 
         if interrupted:
             break
@@ -186,9 +188,9 @@ def define_loss() -> [nn.MSELoss, nn.MSELoss, ContentLoss, ssim, nn.BCEWithLogit
     content_criterion = ContentLoss().to(config.device)
     adversarial_criterion = nn.BCEWithLogitsLoss().to(config.device)
     ssim_criterion = ssim
-    #similaity_criterion = NormalizedCrossCorrelation(return_map=True).to(config.device)
-    #similaity_criterion = GradientCorrelation2d(return_map=True).to(config.device)
-    similaity_criterion = GradientDifference2d(return_map=True).to(config.device)
+    #similaity_criterion = NormalizedCrossCorrelationLoss(return_map=True).to(config.device)
+    similaity_criterion = NormalizedCrossCorrelation(return_map=True).to(config.device)
+    #similaity_criterion = GradientDifference2d(return_map=True).to(config.device)
 
     return psnr_criterion, pixel_criterion, content_criterion, adversarial_criterion, ssim_criterion, similaity_criterion
 
@@ -356,8 +358,8 @@ def train(discriminator,
 
         # ssim_loss = config.ssim_weight * (-torch.log10(ssim_criterion(sr, hr.detach())))
         similaity_val, _ = similaity_criterion(sr, hr.detach())
-        if 0:
-            similaity_loss = config.similaity_weight * (1 - similaity_val) # Loss function for NCC
+        if 1:
+            similaity_loss = config.similaity_weight * (1.0 - similaity_val) # Loss function for NCC
         else:
             similaity_loss = config.similaity_weight * similaity_val # Loss function for Gradient Differnce
 
@@ -483,7 +485,7 @@ def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, similaity_
                 high_img = high_img.to(config.device, non_blocking=True)
             
                 sr = model(lr, rgb)
-                
+
             if epoch == 0:
                 # Write once
                 writer.add_image("Valid/Input_IR",lr.squeeze(0),epoch + 1 )
@@ -575,6 +577,10 @@ class ProgressMeter(object):
         num_digits = len(str(num_batches // 1))
         fmt = "{:" + str(num_digits) + "d}"
         return "[" + fmt + "/" + fmt.format(num_batches) + "]"
+
+def get_lr(optimizer):
+    for param_group in optimizer.param_groups:
+        return param_group['lr']
 
 
 if __name__ == "__main__":
