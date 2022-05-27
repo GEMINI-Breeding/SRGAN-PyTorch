@@ -13,6 +13,7 @@
 # ==============================================================================
 """File description: Initialize the SRResNet model."""
 import os
+from tabnanny import verbose
 import time
 
 import torch
@@ -64,7 +65,7 @@ def main():
     print("Define all optimizer functions successfully.")
 
     print("Define all optimizer scheduler functions...")
-    d_scheduler, g_scheduler = define_optimizer(discriminator, generator)
+    d_scheduler, g_scheduler = define_scheduler(d_optimizer, g_optimizer)
     print("Define all optimizer scheduler functions successfully.")
 
     print("Check whether the training weight is restored...")
@@ -122,10 +123,10 @@ def main():
             torch.save(generator.state_dict(), os.path.join(results_dir, f"g-best.pth"))
 
         # Update LR
- 
         d_scheduler.step()
         g_scheduler.step()
-        writer.add_scalar("Train/lr", get_lr(g_scheduler), epoch)
+        writer.add_scalar("Train/g_lr", get_lr(g_optimizer), epoch)
+        writer.add_scalar("Train/d_lr", get_lr(d_optimizer), epoch)
 
         if interrupted:
             break
@@ -223,8 +224,8 @@ def define_scheduler(d_optimizer: optim.Adam, g_optimizer: optim.Adam) -> [lr_sc
         SRGAN model scheduler
 
     """
-    d_scheduler = lr_scheduler.StepLR(d_optimizer, config.d_optimizer_step_size, config.d_optimizer_gamma)
-    g_scheduler = lr_scheduler.StepLR(g_optimizer, config.g_optimizer_step_size, config.g_optimizer_gamma)
+    d_scheduler = lr_scheduler.StepLR(d_optimizer, step_size=config.d_optimizer_step_size, gamma=config.d_optimizer_gamma, verbose=False)
+    g_scheduler = lr_scheduler.StepLR(g_optimizer, step_size=config.g_optimizer_step_size, gamma=config.g_optimizer_gamma, verbose=False)
 
     return d_scheduler, g_scheduler
 
@@ -356,10 +357,11 @@ def train(discriminator,
             content_loss = config.content_weight * content_criterion(sr, hr.detach())
             adversarial_loss = config.adversarial_weight * adversarial_criterion(output, real_label)
 
-        # ssim_loss = config.ssim_weight * (-torch.log10(ssim_criterion(sr, hr.detach())))
+        
         similaity_val, _ = similaity_criterion(sr, hr.detach())
         if 1:
-            similaity_loss = config.similaity_weight * (1.0 - similaity_val) # Loss function for NCC
+            #similaity_loss = config.similaity_weight * (1.0 - similaity_val) # Loss function for NCC
+            similaity_loss = config.similaity_weight * (-torch.log10(similaity_val))
         else:
             similaity_loss = config.similaity_weight * similaity_val # Loss function for Gradient Differnce
 

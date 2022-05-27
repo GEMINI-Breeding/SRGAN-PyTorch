@@ -109,12 +109,12 @@ class Generator(nn.Module):
         # First conv layer.
         self.conv_block1 = nn.Sequential(
             nn.Conv2d(1, 64, (3, 3), (1, 1), (1, 1)), # for IR image (1, 64, 3)
-            nn.ELU()
+            nn.PReLU(),
         )
 
         self.conv_block1_2 = nn.Sequential(
             nn.Conv2d(3, 64, (3, 3), (1, 1), (1, 1)), # For RGB Image (3, 64, 3)
-            nn.ELU(),
+            nn.PReLU(),
         )
 
         # Features trunk blocks.
@@ -145,30 +145,33 @@ class Generator(nn.Module):
             nn.PReLU(),
         )
 
-        # Upscale conv block.
-        self.upsampling_img = nn.Sequential(
-            nn.Conv2d(1, 4, (3, 3), (1, 1), (1, 1)),
-            nn.PixelShuffle(2),
-            nn.PReLU(),
-            nn.Conv2d(1, 4, (3, 3), (1, 1), (1, 1)),
-            nn.PixelShuffle(2),
-            nn.PReLU(),
-        )
+        # Upsampling image
+        if 1:
+            self.upsampling_img = nn.Sequential(
+                nn.Conv2d(1, 4, (3, 3), (1, 1), (1, 1)),
+                nn.PixelShuffle(2),
+                nn.PReLU(),
+                nn.Conv2d(1, 4, (3, 3), (1, 1), (1, 1)),
+                nn.PixelShuffle(2),
+                nn.PReLU(),
+            )
+        else:
+            self.upsampling_img = nn.UpsamplingBilinear2d(scale_factor=4)
 
 
         # Output layer.
         #self.conv_block3 = nn.Conv2d(64, 3, (9, 9), (1, 1), (4, 4))
         self.conv_block3 = nn.Sequential(
             nn.Conv2d(64, 64, (1, 1), (1, 1), (0, 0)),
-            nn.ELU(),
+            nn.PReLU(),
             nn.Conv2d(64, 32, (3, 3), (1, 1), (1, 1)),
-            nn.ELU(),
+            nn.PReLU(),
             nn.Conv2d(32, 32, (3, 3), (1, 1), (1, 1)),
-            nn.ELU(),
+            nn.PReLU(),
             nn.Conv2d(32, 32, (3, 3), (1, 1), (1, 1)),
-            nn.ELU(),
+            nn.PReLU(),
             nn.Conv2d(32, 32, (3, 3), (1, 1), (1, 1)),
-            nn.ELU(),
+            nn.PReLU(),
             nn.Conv2d(32, 1, (1, 1), (1, 1), (0, 0))
         )
         # Initialize neural network weights.
@@ -188,7 +191,7 @@ class Generator(nn.Module):
             out = self.conv_block3(out)
         else:
             # IR
-            x = self.upsampling_img(x) # Upsample first to make balance RGB and Thermal Block
+            # x = self.upsampling_img(x) # Upsample first to make balance RGB and Thermal Block
             out1_x = self.conv_block1(x)
             out_x = self.resBlock(out1_x)
 
@@ -202,6 +205,9 @@ class Generator(nn.Module):
 
             out1_y_2 = torch.add(out1_y_2, out1_y)
 
+            # Upsample 
+            out_x = self.upsampling(out_x)
+            out1_x = self.upsampling(out1_x)
             # Merge
             out = torch.add(out_x, out1_y_2)
             out_res = self.resBlock(out)

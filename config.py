@@ -12,6 +12,7 @@
 # limitations under the License.
 # ==============================================================================
 """Realize the parameter configuration function of dataset, model, training and verification code."""
+from tkinter.font import families
 from numpy import Infinity
 import torch
 from torch.backends import cudnn as cudnn
@@ -32,7 +33,7 @@ upscale_factor = 4
 mode = "train_srgan"
 
 # Experiment name, easy to save weights and log files
-exp_name = "ir_rgb_0519_TIGAN"
+exp_name = "ir_rgb_0526_TIGAN"
 
 # ==============================================================================
 # Training SRResNet model configuration
@@ -71,15 +72,15 @@ if mode == "train_srgan":
     valid_image_dir = "/home/lion397/data/datasets/GEMINI/Training_220315/val"
 
     image_size = 96
-    batch_size = 16 * 12
+    batch_size = 16 * 8
     num_workers = 2 # more than 4 is slower
 
     # Incremental training and migration training
     resume = True
     strict = False
-    start_epoch = 54749
-    resume_d_weight = f"results/{exp_name}/d-best.pth"
-    resume_g_weight = f"results/{exp_name}/g-best.pth"
+    start_epoch = 13252
+    resume_d_weight = f"results/{exp_name}/d-last.pth"
+    resume_g_weight = f"results/{exp_name}/g-last.pth"
 
     # Total num epochs
     epochs = sys.maxsize # Very large number
@@ -92,27 +93,27 @@ if mode == "train_srgan":
         similaity_weight = 1.0
     else:
         pixel_weight = 1.0
-        content_weight = 0
-        #adversarial_weight = 0.001
+        content_weight = 1.0
         adversarial_weight = 0.002
-        similaity_weight = 0.1
+        #adversarial_weight = 0
+        similaity_weight = 0
 
     # Adam optimizer parameter for Discriminator
-    d_model_lr = 1e-6 # Defalut 1e-4
-    g_model_lr = 1e-6
+    d_model_lr = 1e-4 # Defalut 1e-4
+    g_model_lr = 1e-4
     d_model_betas = (0.9, 0.999)
     g_model_betas = (0.9, 0.999)
 
     # MultiStepLR scheduler parameter for SRGAN
     if 1:
-        d_optimizer_step_size = 2000
-        g_optimizer_step_size = 2000
+        d_optimizer_step_size = 5000
+        g_optimizer_step_size = 5000
     else:
         d_optimizer_step_size = 140
         g_optimizer_step_size = 140
 
-    d_optimizer_gamma = 0.1
-    g_optimizer_gamma = 0.1
+    d_optimizer_gamma = 0.5
+    g_optimizer_gamma = 0.5
 
     # Print the training log every one hundred iterations
     print_frequency = 1000
