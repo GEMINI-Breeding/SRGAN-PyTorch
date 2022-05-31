@@ -78,7 +78,7 @@ if mode == "train_srgan":
     # Incremental training and migration training
     resume = True
     strict = False
-    start_epoch = 13252
+    start_epoch = 87223
     resume_d_weight = f"results/{exp_name}/d-last.pth"
     resume_g_weight = f"results/{exp_name}/g-last.pth"
 
@@ -94,7 +94,7 @@ if mode == "train_srgan":
     else:
         pixel_weight = 1.0
         content_weight = 1.0
-        adversarial_weight = 0.002
+        adversarial_weight = 0.04
         #adversarial_weight = 0
         similaity_weight = 0
 
