@@ -144,3 +144,4 @@ samples
 *.csv
 *.pth
 *.mdb
+events.*

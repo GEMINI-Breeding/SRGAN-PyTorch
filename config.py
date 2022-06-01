@@ -33,7 +33,7 @@ upscale_factor = 4
 mode = "train_srgan"
 
 # Experiment name, easy to save weights and log files
-exp_name = "ir_rgb_0526_TIGAN"
+exp_name = "ir_sim_0531"
 
 # ==============================================================================
 # Training SRResNet model configuration
@@ -68,8 +68,8 @@ if mode == "train_srresnet":
 # ==============================================================================
 if mode == "train_srgan":
     # Dataset address
-    train_image_dir = "/home/lion397/data/datasets/GEMINI/Training_220315/train"
-    valid_image_dir = "/home/lion397/data/datasets/GEMINI/Training_220315/val"
+    train_image_dir = "/home/lion397/data/datasets/GEMINI/Training_IR_SIM_220531/train"
+    valid_image_dir = "/home/lion397/data/datasets/GEMINI/Training_IR_SIM_220531/val"
 
     image_size = 96
     batch_size = 16 * 8
@@ -78,7 +78,7 @@ if mode == "train_srgan":
     # Incremental training and migration training
     resume = True
     strict = False
-    start_epoch = 87223
+    start_epoch = 12856
     resume_d_weight = f"results/{exp_name}/d-last.pth"
     resume_g_weight = f"results/{exp_name}/g-last.pth"
 
@@ -86,17 +86,16 @@ if mode == "train_srgan":
     epochs = sys.maxsize # Very large number
 
     # Loss function weight
-    if 0:
+    if 1:
         pixel_weight = 1.0
         content_weight = 1.0
         adversarial_weight = 0.001
-        similaity_weight = 1.0
     else:
         pixel_weight = 1.0
         content_weight = 1.0
         adversarial_weight = 0.04
         #adversarial_weight = 0
-        similaity_weight = 0
+    similaity_weight = 0
 
     # Adam optimizer parameter for Discriminator
     d_model_lr = 1e-4 # Defalut 1e-4
@@ -124,10 +123,10 @@ if mode == "train_srgan":
 if mode == "valid":
     # Test data address
     if 1:
-        lr_dir = f"/home/lion397/data/datasets/GEMINI/Training_220315/val/IR_LOW"
-        rgb_dir = f"/home/lion397/data/datasets/GEMINI/Training_220315/val/RGB"
+        lr_dir = f"/home/lion397/data/datasets/GEMINI/Training_IR_SIM_220531/val/IR_LOW"
+        rgb_dir = f"/home/lion397/data/datasets/GEMINI/Training_IR_SIM_220531/val/RGB"
         sr_dir = f"results/test/{exp_name}"
-        hr_dir = f"/home/lion397/data/datasets/GEMINI/Training_220315/val/IR_HIGH"
+        hr_dir = f"/home/lion397/data/datasets/GEMINI/Training_IR_SIM_220531/val/IR_HIGH"
     else:
         lr_dir = f"data/Set5/LRbicx{upscale_factor}"
         sr_dir = f"results/test/{exp_name}"
