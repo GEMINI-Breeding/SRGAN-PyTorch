@@ -33,7 +33,7 @@ upscale_factor = 4
 mode = "train_srgan"
 
 # Experiment name, easy to save weights and log files
-exp_name = "ir_sim_0531"
+exp_name = "ir_iPT4_221019"
 
 # ==============================================================================
 # Training SRResNet model configuration
@@ -68,22 +68,27 @@ if mode == "train_srresnet":
 # ==============================================================================
 if mode == "train_srgan":
     # Dataset address
-    train_image_dir = "/home/lion397/data/datasets/GEMINI/Training_IR_SIM_220531/train"
-    valid_image_dir = "/home/lion397/data/datasets/GEMINI/Training_IR_SIM_220531/val"
+    if 1:
+        train_image_dir = "/home/lion397/data/datasets/GEMINI/Training_ip_T4_221019/train"
+        valid_image_dir = "/home/lion397/data/datasets/GEMINI/Training_ip_T4_221019/val"
+    else:
+        train_image_dir = "/home/lion397/data/datasets/GEMINI/Training_IR_SIM_220531/train"
+        valid_image_dir = "/home/lion397/data/datasets/GEMINI/Training_IR_SIM_220531/val"
 
     image_size = 96
-    batch_size = 16 * 8
-    num_workers = 2 # more than 4 is slower
+    batch_size = 16
+    num_workers = 1 # more than 4 is slower
 
     # Incremental training and migration training
-    resume = True
+    resume = False
     strict = False
-    start_epoch = 12856
+    start_epoch = 0
     resume_d_weight = f"results/{exp_name}/d-last.pth"
     resume_g_weight = f"results/{exp_name}/g-last.pth"
 
     # Total num epochs
-    epochs = sys.maxsize # Very large number
+    #epochs = sys.maxsize # Very large number
+    epochs = 15000 # Very large number
 
     # Loss function weight
     if 1:
@@ -93,7 +98,7 @@ if mode == "train_srgan":
     else:
         pixel_weight = 1.0
         content_weight = 1.0
-        adversarial_weight = 0.04
+        adversarial_weight = 0.08
         #adversarial_weight = 0
     similaity_weight = 0
 
@@ -111,8 +116,8 @@ if mode == "train_srgan":
         d_optimizer_step_size = 140
         g_optimizer_step_size = 140
 
-    d_optimizer_gamma = 0.5
-    g_optimizer_gamma = 0.5
+    d_optimizer_gamma = 0.1
+    g_optimizer_gamma = 0.1
 
     # Print the training log every one hundred iterations
     print_frequency = 1000
@@ -122,11 +127,16 @@ if mode == "train_srgan":
 # ==============================================================================
 if mode == "valid":
     # Test data address
-    if 1:
+    if 0:
         lr_dir = f"/home/lion397/data/datasets/GEMINI/Training_IR_SIM_220531/val/IR_LOW"
         rgb_dir = f"/home/lion397/data/datasets/GEMINI/Training_IR_SIM_220531/val/RGB"
         sr_dir = f"results/test/{exp_name}"
         hr_dir = f"/home/lion397/data/datasets/GEMINI/Training_IR_SIM_220531/val/IR_HIGH"
+    elif 1:
+        lr_dir = f"/home/lion397/data/datasets/GEMINI/Training_220315/val/IR_LOW"
+        rgb_dir = f"/home/lion397/data/datasets/GEMINI/Training_220315/val/RGB"
+        sr_dir = f"results/test/{exp_name}"
+        hr_dir = f"/home/lion397/data/datasets/GEMINI/Training_220315/val/IR_HIGH"
     else:
         lr_dir = f"data/Set5/LRbicx{upscale_factor}"
         sr_dir = f"results/test/{exp_name}"

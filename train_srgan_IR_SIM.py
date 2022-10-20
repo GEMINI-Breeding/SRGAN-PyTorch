@@ -470,7 +470,7 @@ def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, similaity_
         
         if epoch % 10 == 0:
             # Test Image
-            sample_dataset = ImageDataset(dataroot="/home/lion397/data/datasets/GEMINI/Training_220315/val/",
+            sample_dataset = ImageDataset(dataroot=config.valid_image_dir,
                                             image_size=96, upscale_factor=4, mode="train")
             (low_img, rgb_img, high_img) = sample_dataset.getImage(10)
 

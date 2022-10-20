@@ -127,6 +127,13 @@ class ThermalImageDataset(Dataset):
         self.lr_image = cv2.imread(self.low_filenames[batch_index])  # FLIR
         self.hr_image = cv2.imread(self.high_filenames[batch_index]) # VarioCAM
         self.rgb_image = cv2.imread(self.rgb_filenames[batch_index])
+
+        # Shape check
+        if self.hr_image.shape[0] // self.upscale_factor == self.lr_image.shape[0]:
+            pass
+        else:
+            self.lr_image = cv2.resize(self.lr_image,dsize=(0,0),fx=1/self.upscale_factor, fy=1/self.upscale_factor)
+
         if 1:
             self.lr_image = cv2.cvtColor(self.lr_image,cv2.COLOR_BGR2GRAY)
             self.hr_image = cv2.cvtColor(self.hr_image,cv2.COLOR_BGR2GRAY)
