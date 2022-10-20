@@ -76,8 +76,8 @@ if mode == "train_srgan":
         valid_image_dir = "/home/lion397/data/datasets/GEMINI/Training_IR_SIM_220531/val"
 
     image_size = 96
-    batch_size = 16
-    num_workers = 1 # more than 4 is slower
+    batch_size = 16 * 20
+    num_workers = 4 # more than 4 is slower
 
     # Incremental training and migration training
     resume = False
