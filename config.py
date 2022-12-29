@@ -33,7 +33,7 @@ upscale_factor = 4
 mode = "train_srgan"
 
 # Experiment name, easy to save weights and log files
-exp_name = "2022_12_28_IR_STN"
+exp_name = "2022_12_28_IR_STN_high"
 
 # ==============================================================================
 # Training SRResNet model configuration
@@ -80,9 +80,9 @@ if mode == "train_srgan":
     num_workers = 4 # more than 4 is slower
 
     # Incremental training and migration training
-    resume = True
+    resume = False
     strict = False
-    start_epoch = 25
+    start_epoch = 0
     resume_d_weight = f"results/{exp_name}/d-last.pth"
     resume_g_weight = f"results/{exp_name}/g-last.pth"
 

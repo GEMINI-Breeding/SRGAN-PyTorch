@@ -44,7 +44,7 @@ class SimpleSTN(nn.Module):
 
         # Regressor for the 3 * 2 affine matrix
         self.fc_loc = nn.Sequential(
-            nn.Linear(1 * 20 * 2 * 2, 32),
+            nn.Linear(1 * 20 * 20 * 20, 32),
             nn.ReLU(True),
             nn.Linear(32, 3 * 2)
         )
@@ -58,7 +58,7 @@ class SimpleSTN(nn.Module):
     def forward(self, x, y):
         xy = torch.cat((x, y), 1)
         xs = self.localization(xy)
-        xs = xs.view(-1, 1 * 20 * 2 * 2)
+        xs = xs.view(-1, 1 * 20 * 20 * 20)
         theta = self.fc_loc(xs)
         theta = theta.view(-1, 2, 3)
 

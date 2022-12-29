@@ -22,6 +22,7 @@ from torch import optim
 from torch.cuda import amp
 from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader
+import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 
 import config
@@ -298,11 +299,10 @@ def train(discriminator,
  
         # Align LR and HR
         upsampling_img = nn.UpsamplingBilinear2d(scale_factor=config.upscale_factor)
-        downsampling_img = nn.UpsamplingBilinear2d(scale_factor=1/config.upscale_factor)
         lr_input = upsampling_img(lr)
-        hr_input = downsampling_img(hr)
-        #transformed_lr, _, _ = generator.stn(lr_input,hr)
-        transformed_lr, _, _ = generator.stn(lr,hr_input)
+        _, _, theta = generator.stn(lr_input,hr)
+        grid = F.affine_grid(theta, lr.size())
+        transformed_lr = F.grid_sample(lr, grid)
         # Use generators to create super-resolution images
         sr = generator(transformed_lr, rgb)
 
@@ -428,11 +428,10 @@ def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, similaity_
  
             # Align LR and HR
             upsampling_img = nn.UpsamplingBilinear2d(scale_factor=config.upscale_factor)
-            downsampling_img = nn.UpsamplingBilinear2d(scale_factor=1/config.upscale_factor)
             lr_input = upsampling_img(lr)
-            hr_input = downsampling_img(hr)
-            #transformed_lr, _, _ = generator.stn(lr_input,hr)
-            transformed_lr, _, _ = model.stn(lr,hr_input)
+            _, _, theta = model.stn(lr_input,hr)
+            grid = F.affine_grid(theta, lr.size())
+            transformed_lr = F.grid_sample(lr, grid)
             # Use generators to create super-resolution images
             sr = model(transformed_lr, rgb)
 
