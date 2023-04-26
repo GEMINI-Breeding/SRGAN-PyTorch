@@ -15,7 +15,7 @@
 import os
 from tabnanny import verbose
 import time
-
+from typing import Union
 import torch
 from torch import nn
 from torch import optim
@@ -164,7 +164,7 @@ def load_dataset() -> [DataLoader, DataLoader]:
     return train_dataloader, valid_dataloader
 
 
-def build_model() -> nn.Module:
+def build_model() -> Union[Discriminator, Generator]:
     """Building discriminator and generators model
 
     Returns:
@@ -245,8 +245,8 @@ def resume_checkpoint(discriminator: nn.Module, generator: nn.Module) -> None:
             generator.load_state_dict(torch.load(config.resume_g_weight), strict=config.strict)
 
 
-def train(discriminator,
-          generator,
+def train(discriminator:Discriminator,
+          generator:Generator,
           train_dataloader,
           psnr_criterion,
           ssim_criterion,
@@ -408,7 +408,7 @@ def train(discriminator,
             progress.display(index)
 
 
-def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, similaity_criterion, epoch, writer) -> float:
+def validate(model:Generator, valid_dataloader, psnr_criterion, ssim_criterion, similaity_criterion, epoch, writer) -> float:
     batch_time = AverageMeter("Time", ":6.3f")
     psnres = AverageMeter("PSNR", ":4.2f")
     ssimres = AverageMeter("SSIM", ":4.2f")

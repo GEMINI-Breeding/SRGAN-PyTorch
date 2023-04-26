@@ -21,6 +21,10 @@ import torch.nn.functional as F
 import torchvision.models as models
 from torch import Tensor
 
+from models.spatial_transformer_net import AffineSTN
+
+import config
+
 __all__ = [
     "ResidualConvBlock",
     "Discriminator", "Generator",
@@ -44,7 +48,7 @@ class SimpleSTN(nn.Module):
 
         # Regressor for the 3 * 2 affine matrix
         self.fc_loc = nn.Sequential(
-            nn.Linear(1 * 20 * 20 * 20, 32),
+            nn.Linear(1 * 20 * (config.image_size//4-4)**2, 32),
             nn.ReLU(True),
             nn.Linear(32, 3 * 2)
         )
@@ -58,7 +62,7 @@ class SimpleSTN(nn.Module):
     def forward(self, x, y):
         xy = torch.cat((x, y), 1)
         xs = self.localization(xy)
-        xs = xs.view(-1, 1 * 20 * 20 * 20)
+        xs = xs.view(-1, 1 * 20 * (config.image_size//4-4)**2)
         theta = self.fc_loc(xs)
         theta = theta.view(-1, 2, 3)
 
@@ -129,7 +133,7 @@ class Discriminator(nn.Module):
         )
 
         self.classifier = nn.Sequential(
-            nn.Linear(512 * 6 * 6, 1024),
+            nn.Linear(512 * config.image_size//16 * config.image_size//16, 1024),
             nn.LeakyReLU(0.2, True),
             nn.Linear(1024, 1),
         )

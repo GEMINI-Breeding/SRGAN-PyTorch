@@ -33,7 +33,7 @@ upscale_factor = 4
 mode = "train_srgan"
 
 # Experiment name, easy to save weights and log files
-exp_name = "2022_12_28_IR_STN_high"
+exp_name = "2022_12_29_IROnly_FrontSTN"
 
 # ==============================================================================
 # Training SRResNet model configuration
@@ -75,7 +75,7 @@ if mode == "train_srgan":
         train_image_dir = "/home/lion397/data/datasets/GEMINI/Training_IR_SIM_220531/train"
         valid_image_dir = "/home/lion397/data/datasets/GEMINI/Training_IR_SIM_220531/val"
 
-    image_size = 96
+    image_size = 256
     batch_size = 1
     num_workers = 4 # more than 4 is slower
 
