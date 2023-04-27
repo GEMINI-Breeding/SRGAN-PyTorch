@@ -26,7 +26,7 @@ from torch.utils.tensorboard import SummaryWriter
 import config
 from dataset import ImageDataset
 from model import Discriminator, Generator, ContentLoss
-
+import numpy as np
 autocast_on = False
 
 def main():
@@ -47,7 +47,7 @@ def main():
     print("Define all optimizer functions successfully.")
 
     print("Define all optimizer scheduler functions...")
-    d_scheduler, g_scheduler = define_optimizer(discriminator, generator)
+    d_scheduler, g_scheduler = define_scheduler(d_optimizer, g_optimizer)
     print("Define all optimizer scheduler functions successfully.")
 
     print("Check whether the training weight is restored...")
@@ -72,6 +72,8 @@ def main():
     best_psnr = 0.0
 
     print("Start train SRGAN model.")
+    # Test 
+    psnr = validate(generator, valid_dataloader, psnr_criterion, config.start_epoch, writer)
     for epoch in range(config.start_epoch, config.epochs):
         train(discriminator,
               generator,
@@ -90,8 +92,8 @@ def main():
         # Automatically save the model with the highest index
         is_best = psnr > best_psnr
         best_psnr = max(psnr, best_psnr)
-        torch.save(discriminator.state_dict(), os.path.join(samples_dir, f"d_epoch_{epoch + 1}.pth"))
-        torch.save(generator.state_dict(), os.path.join(samples_dir, f"g_epoch_{epoch + 1}.pth"))
+        # torch.save(discriminator.state_dict(), os.path.join(samples_dir, f"d_epoch_{epoch + 1}.pth"))
+        # torch.save(generator.state_dict(), os.path.join(samples_dir, f"g_epoch_{epoch + 1}.pth"))
         if is_best:
             torch.save(discriminator.state_dict(), os.path.join(results_dir, "d-best.pth"))
             torch.save(generator.state_dict(), os.path.join(results_dir, f"g-best.pth"))
@@ -309,18 +311,22 @@ def train(discriminator,
         # Initialize the generator optimizer gradient
         g_optimizer.zero_grad()
 
+
+        adversarial_weight_mult = 10**(epoch // config.adversarial_weight_step_size)
+        adversarial_weight = min(config.adversarial_weight * adversarial_weight_mult,0.1)
+
         # Calculate the loss of the generator on the super-resolution image
         if autocast_on:
             with amp.autocast():
                 output = discriminator(sr)
                 pixel_loss = config.pixel_weight * pixel_criterion(sr, hr.detach())
                 content_loss = config.content_weight * content_criterion(sr, hr.detach())
-                adversarial_loss = config.adversarial_weight * adversarial_criterion(output, real_label)
+                adversarial_loss = adversarial_weight * adversarial_criterion(output, real_label)
         else:
             output = discriminator(sr)
             pixel_loss = config.pixel_weight * pixel_criterion(sr, hr.detach())
             content_loss = config.content_weight * content_criterion(sr, hr.detach())
-            adversarial_loss = config.adversarial_weight * adversarial_criterion(output, real_label)
+            adversarial_loss = adversarial_weight * adversarial_criterion(output, real_label)
         # Count discriminator total loss
         g_loss = pixel_loss + content_loss + adversarial_loss
         # Gradient zoom
@@ -348,7 +354,8 @@ def train(discriminator,
         batch_time.update(time.time() - end)
         end = time.time()
 
-        iters = index + epoch * batches + 1
+        # iters = index + epoch * batches + 1
+        iters = (index + epoch * batches)*config.batch_size + 1 # Number of trained images
         writer.add_scalar("Train/D_Loss", d_loss.item(), iters)
         writer.add_scalar("Train/G_Loss", g_loss.item(), iters)
         writer.add_scalar("Train/Pixel_Loss", pixel_loss.item(), iters)
@@ -356,7 +363,7 @@ def train(discriminator,
         writer.add_scalar("Train/Adversarial_Loss", adversarial_loss.item(), iters)
         writer.add_scalar("Train/D(HR)_Probability", d_hr_probability.item(), iters)
         writer.add_scalar("Train/D(SR)_Probability", d_sr_probability.item(), iters)
-        if index % config.print_frequency == 0 and index != 0:
+        if (iters % config.print_frequency == 0 or index == 0):
             progress.display(index)
 
 
@@ -395,6 +402,23 @@ def validate(model, valid_dataloader, psnr_criterion, epoch, writer) -> float:
         writer.add_scalar("Valid/PSNR", psnres.avg, epoch + 1)
         # Print evaluation indicators.
         print(f"* PSNR: {psnres.avg:4.2f}.\n")
+
+        if epoch % 10 == 0 or True:
+            # Test Image
+            with amp.autocast():
+                sample_dataset = ImageDataset(dataroot=config.valid_image_dir,
+                                                image_size=config.image_size, upscale_factor=4, mode="val")
+                (low_img, high_img) = sample_dataset.__getitem__(4)
+
+                input_tensor = low_img.unsqueeze(0).to(config.device)
+                sr = model(input_tensor)
+
+            if epoch == 0:
+                # Write once
+                writer.add_image("Valid/Input_IR",low_img,epoch + 1 )
+                writer.add_image("Valid/GroundTruth",high_img,epoch + 1 )
+            # Write everytime
+            writer.add_image("Valid/Output",sr.squeeze(0),epoch + 1 )
 
     return psnres.avg
 

@@ -43,11 +43,11 @@ class ImageDataset(Dataset):
     def __init__(self, dataroot: str, image_size: int, upscale_factor: int, mode: str) -> None:
         super(ImageDataset, self).__init__()
         self.filenames = [os.path.join(dataroot, x) for x in os.listdir(dataroot)]
-
+        self.filenames.sort()
         if mode == "train":
             self.hr_transforms = transforms.Compose([
-                transforms.RandomCrop(image_size),
                 transforms.RandomRotation(90),
+                transforms.RandomCrop(image_size),
                 transforms.RandomHorizontalFlip(0.5),
             ])
         else:

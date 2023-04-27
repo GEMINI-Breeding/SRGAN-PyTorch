@@ -66,12 +66,22 @@ def main() -> None:
             hr_image_path = os.path.join(config.hr_dir, file_names[index])
         else:
             lr_image_path = os.path.join(config.lr_dir, lr_image_paths[index])
-            sr_image_path = os.path.join(config.sr_dir, "SR_"+lr_image_paths[index])
+            sr_image_path = os.path.join(results_dir, "SR_"+lr_image_paths[index])
             hr_image_path = os.path.join(config.hr_dir,hr_image_paths[index])
 
         print(f"Processing `{os.path.abspath(lr_image_path)}`...")
         lr_image = Image.open(lr_image_path).convert("RGB")
         hr_image = Image.open(hr_image_path).convert("RGB")
+
+        # Resize lr
+        if 1:
+            width, height = hr_image.size
+            newsize = (width//config.upscale_factor, height//config.upscale_factor)
+            lr_image = lr_image.resize(newsize)
+
+            width, height = hr_image.size
+            newsize = (width-width%4, height-height%4)
+            hr_image = hr_image.resize(newsize)
 
         if 1:
             # Conver to grayscale
@@ -89,7 +99,7 @@ def main() -> None:
 
         
         # Cal PSNR
-        if 0:
+        if 1:
             with amp.autocast():
                 total_psnr += ssim(sr_tensor,hr_tensor)
 

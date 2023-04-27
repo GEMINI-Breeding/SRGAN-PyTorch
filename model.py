@@ -20,6 +20,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torchvision.models as models
 from torch import Tensor
+import config
 
 __all__ = [
     "ResidualConvBlock",
@@ -90,7 +91,7 @@ class Discriminator(nn.Module):
         )
 
         self.classifier = nn.Sequential(
-            nn.Linear(512 * 6 * 6, 1024),
+            nn.Linear(512 * config.image_size//16 * config.image_size//16, 1024),
             nn.LeakyReLU(0.2, True),
             nn.Linear(1024, 1),
         )
