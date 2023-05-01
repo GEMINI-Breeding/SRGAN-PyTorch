@@ -17,131 +17,130 @@ from numpy import Infinity
 import torch
 from torch.backends import cudnn as cudnn
 import sys
-# ==============================================================================
-# General configuration
-# ==============================================================================
-# Random seed to maintain reproducible results
-torch.manual_seed(0)
-# Use GPU for training by default
-device = torch.device("cuda", 0)
-# Turning on when the image size does not change during training can speed up training
-cudnn.benchmark = True
-# Image magnification factor
-upscale_factor = 4
-# Current configuration parameter method
-#mode = "valid"
-mode = "train_srgan"
 
-# Experiment name, easy to save weights and log files
-exp_name = "2022_12_29_IROnly_FrontSTN"
+class Config():
 
-# ==============================================================================
-# Training SRResNet model configuration
-# ==============================================================================
-if mode == "train_srresnet":
-    # Dataset address
-    train_image_dir = "data/ImageNet/SRGAN/train"
-    valid_image_dir = "data/ImageNet/SRGAN/valid"
+    def __init__(self, mode="train_srgan",exp_name="test"):
+        # ==============================================================================
+        # General configuration
+        # ==============================================================================
+        # Random seed to maintain reproducible results
+        torch.manual_seed(0)
+        # Use GPU for training by default
+        self.device = torch.device("cuda", 0)
+        # Turning on when the image size does not change during training can speed up training
+        cudnn.benchmark = True
+        # Image magnification factor
+        self.upscale_factor = 4
+        # Current configuration parameter method
+        self.mode = mode
+        #mode = "train_srgan"
 
-    image_size = 96
-    batch_size = 16
-    num_workers = 4
+        # Experiment name, easy to save weights and log files
+        self.exp_name = exp_name
 
-    # Incremental training and migration training
-    resume = False
-    strict = False
-    start_epoch = 0
-    resume_weight = ""
+        # ==============================================================================
+        # Training SRResNet model configuration
+        # ==============================================================================
+        if self.mode == "train_srresnet":
+            # Dataset address
+            self.train_image_dir = "data/ImageNet/SRGAN/train"
+            self.valid_image_dir = "data/ImageNet/SRGAN/valid"
 
-    # Total num epochs
-    epochs = 100
+            self.image_size = 96
+            self.batch_size = 16
+            self.num_workers = 4
 
-    # Adam optimizer parameter for SRResNet(p)
-    model_lr = 1e-4
-    model_betas = (0.9, 0.999)
+            # Incremental training and migration training
+            self.resume = False
+            self.strict = False
+            self.start_epoch = 0
+            self.resume_weight = ""
 
-    # Print the training log every one hundred iterations
-    print_frequency = 1000
+            # Total num epochs
+            self.epochs = 100
 
-# ==============================================================================
-# Training SRGAN model configuration
-# ==============================================================================
-if mode == "train_srgan":
-    # Dataset address
-    if 1:
-        train_image_dir = "/home/lion397/data/datasets/GEMINI/Training_ip_T4_221019/train"
-        valid_image_dir = "/home/lion397/data/datasets/GEMINI/Training_ip_T4_221019/val"
-    else:
-        train_image_dir = "/home/lion397/data/datasets/GEMINI/Training_IR_SIM_220531/train"
-        valid_image_dir = "/home/lion397/data/datasets/GEMINI/Training_IR_SIM_220531/val"
+            # Adam optimizer parameter for SRResNet(p)
+            self.model_lr = 1e-4
+            self.model_betas = (0.9, 0.999)
 
-    image_size = 256
-    batch_size = 1
-    num_workers = 4 # more than 4 is slower
+            # Print the training log every one hundred iterations
+            self.print_frequency = 100
 
-    # Incremental training and migration training
-    resume = False
-    strict = False
-    start_epoch = 0
-    resume_d_weight = f"results/{exp_name}/d-last.pth"
-    resume_g_weight = f"results/{exp_name}/g-last.pth"
+        # ==============================================================================
+        # Training SRGAN model configuration
+        # ==============================================================================
+        if self.mode == "train_srgan":
+            # Dataset address
+            if 0:
+                self.train_image_dir = "/home/lion397/data/datasets/GEMINI/Training_All_221201/train/IR_HIGH"
+                self.valid_image_dir = "/home/lion397/data/datasets/GEMINI/Training_All_221201/val/IR_HIGH"
+            else:
+                self.train_image_dir = "/home/lion397/data/datasets/GEMINI/Training_All_221201/train"
+                self.valid_image_dir = "/home/lion397/data/datasets/GEMINI/Training_All_221201/val"
 
-    # Total num epochs
-    #epochs = sys.maxsize # Very large number
-    epochs = 15000 # Very large number
 
-    # Loss function weight
-    if 1:
-        pixel_weight = 1.0
-        content_weight = 1.0
-        adversarial_weight = 0.001
-    else:
-        pixel_weight = 1.0
-        content_weight = 1.0
-        adversarial_weight = 0.08
-        #adversarial_weight = 0
-    similaity_weight = 0
+            self.image_size = 256
+            self.batch_size = 4
+            self.num_workers = 4 # more than 4 is slower
 
-    # Adam optimizer parameter for Discriminator
-    d_model_lr = 1e-4 # Defalut 1e-4
-    g_model_lr = 1e-4
-    d_model_betas = (0.9, 0.999)
-    g_model_betas = (0.9, 0.999)
+            # Incremental training and migration training
+            self.resume = True
+            self.strict = False
+            self.start_epoch = 0
+            self.resume_d_weight = f"results/{exp_name}/d-best.pth"
+            self.resume_g_weight = f"results/{exp_name}/g-best.pth"
 
-    # MultiStepLR scheduler parameter for SRGAN
-    if 1:
-        d_optimizer_step_size = 5000
-        g_optimizer_step_size = 5000
-    else:
-        d_optimizer_step_size = 140
-        g_optimizer_step_size = 140
+            # Total num epochs
+            #epochs = sys.maxsize # Very large number
+            self.epochs = 400 # Very large number
 
-    d_optimizer_gamma = 0.1
-    g_optimizer_gamma = 0.1
+            # Loss function weight
 
-    # Print the training log every one hundred iterations
-    print_frequency = 1000
+            self.pixel_weight = 1.0
+            self.content_weight = 1.0
+            self.adversarial_weight = 0.001
 
-# ==============================================================================
-# Verify configuration
-# ==============================================================================
-if mode == "valid":
-    # Test data address
-    if 0:
-        lr_dir = f"/home/lion397/data/datasets/GEMINI/Training_IR_SIM_220531/val/IR_LOW"
-        rgb_dir = f"/home/lion397/data/datasets/GEMINI/Training_IR_SIM_220531/val/RGB"
-        sr_dir = f"results/test/{exp_name}"
-        hr_dir = f"/home/lion397/data/datasets/GEMINI/Training_IR_SIM_220531/val/IR_HIGH"
-    elif 1:
-        lr_dir = f"/home/lion397/data/datasets/GEMINI/Training_220315/val/IR_LOW"
-        rgb_dir = f"/home/lion397/data/datasets/GEMINI/Training_220315/val/RGB"
-        sr_dir = f"results/test/{exp_name}"
-        hr_dir = f"/home/lion397/data/datasets/GEMINI/Training_220315/val/IR_HIGH"
-    else:
-        lr_dir = f"data/Set5/LRbicx{upscale_factor}"
-        sr_dir = f"results/test/{exp_name}"
-        hr_dir = f"data/Set5/GTmod12"
+            self.adversarial_weight_step_size = 50
+            self.adversarial_weight_step_rate = 2
 
-    #model_path = f"results/{exp_name}/g-best.pth"
-    #model_path = f"results/{exp_name}/srresnet-ImageNet-2df2c5f9.pth"
-    model_path = f"results/{exp_name}/g-best.pth"
+            self.similaity_weight = 1.0
+
+            # Adam optimizer parameter for Discriminator
+            self.d_model_lr = 1e-4 # Defalut 1e-4
+            self.g_model_lr = 1e-4
+            self.d_model_betas = (0.9, 0.999)
+            self.g_model_betas = (0.9, 0.999)
+
+            # MultiStepLR scheduler parameter for SRGAN
+            self.d_scheduler_step_size = 200
+            self.g_scheduler_step_size = 200
+
+            self.d_scheduler_gamma = 0.1
+            self.g_scheduler_gamma = 0.1
+
+            # Print the training log every one hundred iterations
+            self.print_frequency = 100
+
+        # ==============================================================================
+        # Verify configuration
+        # ==============================================================================
+        if mode == "valid":
+            # Test data address
+            if 0:
+                self.lr_dir = f"/home/lion397/data/datasets/GEMINI/Training_IR_SIM_220531/val/IR_LOW"
+                self.rgb_dir = f"/home/lion397/data/datasets/GEMINI/Training_IR_SIM_220531/val/RGB"
+                self.sr_dir = f"results/test/{exp_name}"
+                self.hr_dir = f"/home/lion397/data/datasets/GEMINI/Training_IR_SIM_220531/val/IR_HIGH"
+            elif 0:
+                self.lr_dir = f"/home/lion397/data/datasets/GEMINI/Training_220315/val/IR_LOW"
+                self.rgb_dir = f"/home/lion397/data/datasets/GEMINI/Training_220315/val/RGB"
+                self.sr_dir = f"results/test/{exp_name}"
+                self.hr_dir = f"/home/lion397/data/datasets/GEMINI/Training_220315/val/IR_HIGH"
+            else:
+                self.lr_dir = f"/home/lion397/data/datasets/GEMINI/Training_All_221201/val/IR_LOW"
+                self.hr_dir = f"/home/lion397/data/datasets/GEMINI/Training_All_221201/val/IR_HIGH"
+
+            #model_path = f"results/{exp_name}/g-best.pth"
+            #model_path = f"results/{exp_name}/srresnet-ImageNet-2df2c5f9.pth"
+            self.model_path = f"results/{exp_name}/g-best.pth"

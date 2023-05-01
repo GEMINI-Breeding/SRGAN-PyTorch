@@ -16,7 +16,7 @@ class NormalizedCrossCorrelationLoss(NormalizedCrossCorrelation):
     def forward(self, x, y):
         gc = super().forward(x, y)
 
-        if not self.return_map:
+        if not self._return_map:
             return 1.0 - gc
 
         return 1.0 - gc[0], gc[1]

@@ -24,7 +24,7 @@ from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-import config
+from config import Config
 from thermal_dataset import ThermalImageDataset as ImageDataset
 from model_thermal_rgb import Discriminator, Generator, ContentLoss
 
@@ -33,9 +33,12 @@ from pytorch_similarity.torch_similarity.modules import GradientDifference2d, Gr
 from pytorch_similarity.torch_similarity.modules import NormalizedCrossCorrelationLoss, NormalizedCrossCorrelation
 import signal
 import sys
+from torchvision.transforms import functional as F
 autocast_on = False
-
 interrupted = False
+
+config = Config(mode="train_srgan", exp_name="2022-04-29-ThermalRGB_NCCLoss")
+
 def handler(signum, _):
     print(f'Application is terminated by {signal.Signals(signum).name}\n')
     global interrupted
@@ -171,7 +174,7 @@ def build_model() -> nn.Module:
         SRGAN model
 
     """
-    discriminator = Discriminator().to(config.device)
+    discriminator = Discriminator(image_size=config.image_size).to(config.device)
     generator = Generator().to(config.device)
 
     return discriminator, generator
@@ -189,8 +192,8 @@ def define_loss() -> [nn.MSELoss, nn.MSELoss, ContentLoss, ssim, nn.BCEWithLogit
     content_criterion = ContentLoss().to(config.device)
     adversarial_criterion = nn.BCEWithLogitsLoss().to(config.device)
     ssim_criterion = ssim
-    #similaity_criterion = NormalizedCrossCorrelationLoss(return_map=True).to(config.device)
-    similaity_criterion = NormalizedCrossCorrelation(return_map=True).to(config.device)
+    similaity_criterion = NormalizedCrossCorrelationLoss(return_map=True).to(config.device)
+    #similaity_criterion = NormalizedCrossCorrelation(return_map=True).to(config.device)
     #similaity_criterion = GradientDifference2d(return_map=True).to(config.device)
 
     return psnr_criterion, pixel_criterion, content_criterion, adversarial_criterion, ssim_criterion, similaity_criterion
@@ -224,8 +227,8 @@ def define_scheduler(d_optimizer: optim.Adam, g_optimizer: optim.Adam) -> [lr_sc
         SRGAN model scheduler
 
     """
-    d_scheduler = lr_scheduler.StepLR(d_optimizer, step_size=config.d_optimizer_step_size, gamma=config.d_optimizer_gamma, verbose=False)
-    g_scheduler = lr_scheduler.StepLR(g_optimizer, step_size=config.g_optimizer_step_size, gamma=config.g_optimizer_gamma, verbose=False)
+    d_scheduler = lr_scheduler.StepLR(d_optimizer, step_size=config.d_scheduler_step_size, gamma=config.d_scheduler_gamma, verbose=False)
+    g_scheduler = lr_scheduler.StepLR(g_optimizer, step_size=config.g_scheduler_step_size, gamma=config.g_scheduler_gamma, verbose=False)
 
     return d_scheduler, g_scheduler
 
@@ -234,7 +237,7 @@ def resume_checkpoint(discriminator: nn.Module, generator: nn.Module) -> None:
     """Transfer training or recovery training
 
     Args:
-        discriminator (nn.Module): Discriminator model
+        discriminator (nn.Module): Discriminator i
         generator (nn.Module): Generator model
 
     """
@@ -358,11 +361,13 @@ def train(discriminator,
             adversarial_loss = config.adversarial_weight * adversarial_criterion(output, real_label)
 
         
-        similaity_val, _ = similaity_criterion(sr, hr.detach())
-        if 1:
+        if 0:
+            similaity_val, _ = similaity_criterion(sr, hr.detach())
             #similaity_loss = config.similaity_weight * (1.0 - similaity_val) # Loss function for NCC
             similaity_loss = config.similaity_weight * (-torch.log10(similaity_val))
         else:
+            rgb_gray = F.rgb_to_grayscale(rgb)
+            similaity_val, _ = similaity_criterion(rgb_gray, hr.detach())
             similaity_loss = config.similaity_weight * similaity_val # Loss function for Gradient Differnce
 
         # Count discriminator total loss

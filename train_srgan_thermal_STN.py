@@ -224,8 +224,8 @@ def define_scheduler(d_optimizer: optim.Adam, g_optimizer: optim.Adam) -> [lr_sc
         SRGAN model scheduler
 
     """
-    d_scheduler = lr_scheduler.StepLR(d_optimizer, step_size=config.d_optimizer_step_size, gamma=config.d_optimizer_gamma, verbose=False)
-    g_scheduler = lr_scheduler.StepLR(g_optimizer, step_size=config.g_optimizer_step_size, gamma=config.g_optimizer_gamma, verbose=False)
+    d_scheduler = lr_scheduler.StepLR(d_optimizer, step_size=config.d_scheduler_step_size, gamma=config.d_scheduler_gamma, verbose=False)
+    g_scheduler = lr_scheduler.StepLR(g_optimizer, step_size=config.g_scheduler_step_size, gamma=config.g_scheduler_gamma, verbose=False)
 
     return d_scheduler, g_scheduler
 

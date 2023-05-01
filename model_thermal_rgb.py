@@ -55,7 +55,7 @@ class ResidualConvBlock(nn.Module):
 
 
 class Discriminator(nn.Module):
-    def __init__(self) -> None:
+    def __init__(self,image_size=96) -> None:
         super(Discriminator, self).__init__()
         self.features = nn.Sequential(
             # input size. (3) x 96 x 96 => Changed to gray scale (1) x 96 x 96
@@ -90,7 +90,7 @@ class Discriminator(nn.Module):
         )
 
         self.classifier = nn.Sequential(
-            nn.Linear(512 * 6 * 6, 1024),
+            nn.Linear(512 * image_size//16 * image_size//16, 1024),
             nn.LeakyReLU(0.2, True),
             nn.Linear(1024, 1),
         )

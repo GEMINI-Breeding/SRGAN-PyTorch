@@ -23,15 +23,17 @@ from torch.optim import lr_scheduler
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 
-import config
+from config import Config
 from dataset import ImageDataset
 from model import Discriminator, Generator, ContentLoss
 import numpy as np
 autocast_on = False
 
+config = Config(mode="train_srgan", exp_name="2022-04-26-VaillaSRGAN")
+
 def main():
     print("Load train dataset and valid dataset...")
-    train_dataloader, valid_dataloader = load_dataset()
+    train_dataloader, valid_dataloader = load_dataset(config=config)
     print("Load train dataset and valid dataset successfully.")
 
     print("Build SRGAN model...")
@@ -108,7 +110,7 @@ def main():
     print("End train SRGAN model.")
 
 
-def load_dataset() -> [DataLoader, DataLoader]:
+def load_dataset(config:Config) -> [DataLoader, DataLoader]:
     """Load super-resolution data set
 
      Returns:
@@ -142,7 +144,7 @@ def build_model() -> nn.Module:
         SRGAN model
 
     """
-    discriminator = Discriminator().to(config.device)
+    discriminator = Discriminator(image_size=config.image_size).to(config.device)
     generator = Generator().to(config.device)
 
     return discriminator, generator
@@ -191,8 +193,8 @@ def define_scheduler(d_optimizer: optim.Adam, g_optimizer: optim.Adam) -> [lr_sc
         SRGAN model scheduler
 
     """
-    d_scheduler = lr_scheduler.StepLR(d_optimizer, config.d_optimizer_step_size, config.d_optimizer_gamma)
-    g_scheduler = lr_scheduler.StepLR(g_optimizer, config.g_optimizer_step_size, config.g_optimizer_gamma)
+    d_scheduler = lr_scheduler.StepLR(d_optimizer, config.d_scheduler_step_size, config.d_scheduler_gamma)
+    g_scheduler = lr_scheduler.StepLR(g_optimizer, config.g_scheduler_step_size, config.g_scheduler_gamma)
 
     return d_scheduler, g_scheduler
 
@@ -311,9 +313,12 @@ def train(discriminator,
         # Initialize the generator optimizer gradient
         g_optimizer.zero_grad()
 
-
-        adversarial_weight_mult = 10**(epoch // config.adversarial_weight_step_size)
-        adversarial_weight = min(config.adversarial_weight * adversarial_weight_mult,0.1)
+        if 0:
+            if 0:
+                adversarial_weight_mult = (config.adversarial_weight_step_rate)**(epoch // config.adversarial_weight_step_size)
+                adversarial_weight = min(config.adversarial_weight * adversarial_weight_mult,0.1)
+            else:
+                adversarial_weight = min(config.adversarial_weight + 0.001 * (epoch // config.adversarial_weight_step_size),0.1)
 
         # Calculate the loss of the generator on the super-resolution image
         if autocast_on:
@@ -321,12 +326,12 @@ def train(discriminator,
                 output = discriminator(sr)
                 pixel_loss = config.pixel_weight * pixel_criterion(sr, hr.detach())
                 content_loss = config.content_weight * content_criterion(sr, hr.detach())
-                adversarial_loss = adversarial_weight * adversarial_criterion(output, real_label)
+                adversarial_loss = config.adversarial_weight * adversarial_criterion(output, real_label)
         else:
             output = discriminator(sr)
             pixel_loss = config.pixel_weight * pixel_criterion(sr, hr.detach())
             content_loss = config.content_weight * content_criterion(sr, hr.detach())
-            adversarial_loss = adversarial_weight * adversarial_criterion(output, real_label)
+            adversarial_loss = config.adversarial_weight * adversarial_criterion(output, real_label)
         # Count discriminator total loss
         g_loss = pixel_loss + content_loss + adversarial_loss
         # Gradient zoom
