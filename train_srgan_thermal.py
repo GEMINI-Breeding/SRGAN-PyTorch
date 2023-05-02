@@ -37,7 +37,7 @@ from torchvision.transforms import functional as F
 autocast_on = False
 interrupted = False
 
-config = Config(mode="train_srgan", exp_name="2022-04-29-ThermalRGB_NCCLoss")
+config = Config(mode="train_srgan", exp_name="2022-05-01-ThermalRGB_NCCLoss_Fixbug")
 
 def handler(signum, _):
     print(f'Application is terminated by {signal.Signals(signum).name}\n')
@@ -116,10 +116,10 @@ def main():
         is_best = psnr > best_psnr
         best_psnr = max(psnr, best_psnr)
         
-        if False:
-            if epoch % 100 == 0:
-                torch.save(discriminator.state_dict(), os.path.join(samples_dir, f"d_epoch_{epoch + 1}.pth"))
-                torch.save(generator.state_dict(), os.path.join(samples_dir, f"g_epoch_{epoch + 1}.pth"))
+        if True:
+            if epoch % 20 == 0:
+                torch.save(discriminator.state_dict(), os.path.join(results_dir, f"d_epoch_{epoch + 1}.pth"))
+                torch.save(generator.state_dict(), os.path.join(results_dir, f"g_epoch_{epoch + 1}.pth"))
             
         if is_best:
             torch.save(discriminator.state_dict(), os.path.join(results_dir, "d-best.pth"))
@@ -361,14 +361,11 @@ def train(discriminator,
             adversarial_loss = config.adversarial_weight * adversarial_criterion(output, real_label)
 
         
-        if 0:
-            similaity_val, _ = similaity_criterion(sr, hr.detach())
-            #similaity_loss = config.similaity_weight * (1.0 - similaity_val) # Loss function for NCC
-            similaity_loss = config.similaity_weight * (-torch.log10(similaity_val))
-        else:
-            rgb_gray = F.rgb_to_grayscale(rgb)
-            similaity_val, _ = similaity_criterion(rgb_gray, hr.detach())
-            similaity_loss = config.similaity_weight * similaity_val # Loss function for Gradient Differnce
+
+        rgb_gray = F.rgb_to_grayscale(rgb)
+        # similaity_val, _ = similaity_criterion(rgb_gray, hr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
+        similaity_val, _ = similaity_criterion(rgb_gray, sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
+        similaity_loss = config.similaity_weight * similaity_val # Loss function for Gradient Differnce
 
         # Count discriminator total loss
         g_loss = (pixel_loss
@@ -447,13 +444,16 @@ def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, similaity_
                 # Mixed precision
                 with amp.autocast():
                     ssim_val = ssim_criterion(sr, hr)
-                    similaity_val, _ = similaity_criterion(sr, hr.detach())
             else:
                 ssim_val = ssim_criterion(sr, hr)
-                similaity_val, _ = similaity_criterion(sr, hr.detach())
+
+            rgb_gray = F.rgb_to_grayscale(rgb)
+            # similaity_val, _ = similaity_criterion(rgb_gray, hr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
+            similaity_val, _ = similaity_criterion(rgb_gray, sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
+            similaity_loss = config.similaity_weight * similaity_val # Loss function for Gradient Differnce
 
             ssimres.update(ssim_val.item(), hr.size(0))
-            similaityres.update(similaity_val.item(), hr.size(0))
+            similaityres.update(1-similaity_val.item(), hr.size(0))
 
             # measure elapsed time
             batch_time.update(time.time() - end)

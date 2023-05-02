@@ -1,0 +1,11 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../../datasets/GEMINI/Training_All_221201"
+		}
+	],
+	"settings": {}
+}

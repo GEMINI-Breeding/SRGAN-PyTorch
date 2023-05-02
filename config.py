@@ -113,8 +113,8 @@ class Config():
             self.g_model_betas = (0.9, 0.999)
 
             # MultiStepLR scheduler parameter for SRGAN
-            self.d_scheduler_step_size = 200
-            self.g_scheduler_step_size = 200
+            self.d_scheduler_step_size = 400
+            self.g_scheduler_step_size = 400
 
             self.d_scheduler_gamma = 0.1
             self.g_scheduler_gamma = 0.1
