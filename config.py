@@ -87,7 +87,7 @@ class Config():
             # Incremental training and migration training
             self.resume = True
             self.strict = False
-            self.start_epoch = 0
+            self.start_epoch = 152
             self.resume_d_weight = f"results/{exp_name}/d-best.pth"
             self.resume_g_weight = f"results/{exp_name}/g-best.pth"
 

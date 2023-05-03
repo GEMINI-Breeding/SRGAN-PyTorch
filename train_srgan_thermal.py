@@ -351,12 +351,12 @@ def train(discriminator,
         if autocast_on:
             with amp.autocast():
                 output = discriminator(sr)
-                pixel_loss = config.pixel_weight * pixel_criterion(sr, hr.detach())
+                pixel_loss = config.pixel_weight * pixel_criterion(sr, lr.detach())
                 content_loss = config.content_weight * content_criterion(sr, hr.detach())
                 adversarial_loss = config.adversarial_weight * adversarial_criterion(output, real_label) 
         else:
             output = discriminator(sr)
-            pixel_loss =  config.pixel_weight * pixel_criterion(sr, hr.detach())
+            pixel_loss =  config.pixel_weight * pixel_criterion(sr, lr.detach())
             content_loss = config.content_weight * content_criterion(sr, hr.detach())
             adversarial_loss = config.adversarial_weight * adversarial_criterion(output, real_label)
 
