@@ -37,7 +37,7 @@ from torchvision.transforms import functional as F
 autocast_on = False
 interrupted = False
 
-config = Config(mode="train_srgan", exp_name="2022-05-01-ThermalRGB_NCCLoss_Fixbug")
+config = Config(mode="train_srgan", exp_name="2023-05-24-ThermalRGB_LRMSE_NCCRGB")
 
 def handler(signum, _):
     print(f'Application is terminated by {signal.Signals(signum).name}\n')
@@ -117,7 +117,7 @@ def main():
         best_psnr = max(psnr, best_psnr)
         
         if True:
-            if epoch % 20 == 0:
+            if epoch % 10 == 0:
                 torch.save(discriminator.state_dict(), os.path.join(results_dir, f"d_epoch_{epoch + 1}.pth"))
                 torch.save(generator.state_dict(), os.path.join(results_dir, f"g_epoch_{epoch + 1}.pth"))
             
@@ -351,12 +351,20 @@ def train(discriminator,
         if autocast_on:
             with amp.autocast():
                 output = discriminator(sr)
-                pixel_loss = config.pixel_weight * pixel_criterion(sr, lr.detach())
+                if 0:
+                    lr_resized = generator.upsampling_img(lr.detach())
+                    pixel_loss = config.pixel_weight * pixel_criterion(sr, lr_resized)
+                else:
+                    pixel_loss = config.pixel_weight * pixel_criterion(sr, hr)
                 content_loss = config.content_weight * content_criterion(sr, hr.detach())
                 adversarial_loss = config.adversarial_weight * adversarial_criterion(output, real_label) 
         else:
             output = discriminator(sr)
-            pixel_loss =  config.pixel_weight * pixel_criterion(sr, lr.detach())
+            if 0:
+                lr_resized = generator.upsampling_img(lr.detach())
+                pixel_loss = config.pixel_weight * pixel_criterion(sr, lr_resized)
+            else:
+                pixel_loss = config.pixel_weight * pixel_criterion(sr, hr)
             content_loss = config.content_weight * content_criterion(sr, hr.detach())
             adversarial_loss = config.adversarial_weight * adversarial_criterion(output, real_label)
 

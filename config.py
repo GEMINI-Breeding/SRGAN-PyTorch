@@ -87,13 +87,13 @@ class Config():
             # Incremental training and migration training
             self.resume = True
             self.strict = False
-            self.start_epoch = 152
-            self.resume_d_weight = f"results/{exp_name}/d-best.pth"
-            self.resume_g_weight = f"results/{exp_name}/g-best.pth"
+            self.start_epoch = 1200
+            self.resume_d_weight = f"results/{exp_name}/d-last.pth"
+            self.resume_g_weight = f"results/{exp_name}/g-last.pth"
 
             # Total num epochs
             #epochs = sys.maxsize # Very large number
-            self.epochs = 400 # Very large number
+            self.epochs = 4000 # Very large number
 
             # Loss function weight
 
@@ -113,8 +113,8 @@ class Config():
             self.g_model_betas = (0.9, 0.999)
 
             # MultiStepLR scheduler parameter for SRGAN
-            self.d_scheduler_step_size = 400
-            self.g_scheduler_step_size = 400
+            self.d_scheduler_step_size = 1000
+            self.g_scheduler_step_size = 1000
 
             self.d_scheduler_gamma = 0.1
             self.g_scheduler_gamma = 0.1
