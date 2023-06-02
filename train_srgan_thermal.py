@@ -37,7 +37,7 @@ from torchvision.transforms import functional as F
 autocast_on = False
 interrupted = False
 
-config = Config(mode="train_srgan", exp_name="2023-05-31-ThermalRGB_HRMSE_HRNCC")
+config = Config(mode="train_srgan", exp_name="2023-06-01-ThermalRGB_HRMSE_RGBNCC_RealTemp")
 
 def handler(signum, _):
     print(f'Application is terminated by {signal.Signals(signum).name}\n')
@@ -285,7 +285,7 @@ def train(discriminator,
     generator.train()
 
     end = time.time()
-    for index, (lr, rgb, hr) in enumerate(train_dataloader):
+    for index, (lr, rgb, hr, thermal_info) in enumerate(train_dataloader):
         
         # measure data loading time
         data_time.update(time.time() - end)
@@ -372,8 +372,8 @@ def train(discriminator,
 
         rgb_gray = F.rgb_to_grayscale(rgb)
         # similaity_val, _ = similaity_criterion(rgb_gray, hr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
-        # similaity_val, _ = similaity_criterion(rgb_gray, sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
-        similaity_val, _ = similaity_criterion(hr.detach(), sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
+        similaity_val, _ = similaity_criterion(rgb_gray, sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
+        #similaity_val, _ = similaity_criterion(hr.detach(), sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
         similaity_loss = config.similaity_weight * similaity_val # Loss function for Gradient Differnce
 
         # Count discriminator total loss
@@ -433,7 +433,7 @@ def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, similaity_
 
     with torch.no_grad():
         end = time.time()
-        for index, (lr, rgb, hr) in enumerate(valid_dataloader):
+        for index, (lr, rgb, hr, thermal_info) in enumerate(valid_dataloader):
             lr = lr.to(config.device, non_blocking=True)
             hr = hr.to(config.device, non_blocking=True)
             rgb = rgb.to(config.device, non_blocking=True)
@@ -458,8 +458,8 @@ def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, similaity_
 
             rgb_gray = F.rgb_to_grayscale(rgb)
             # similaity_val, _ = similaity_criterion(rgb_gray, hr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
-            #similaity_val, _ = similaity_criterion(rgb_gray, sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
-            similaity_val, _ = similaity_criterion(hr.detach(), sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
+            similaity_val, _ = similaity_criterion(rgb_gray, sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
+            # similaity_val, _ = similaity_criterion(hr.detach(), sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
             similaity_loss = config.similaity_weight * similaity_val # Loss function for Gradient Differnce
 
             ssimres.update(ssim_val.item(), hr.size(0))
@@ -485,9 +485,9 @@ def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, similaity_
         
         if epoch % 10 == 0:
             # Test Image
-            sample_dataset = ImageDataset(dataroot="/home/lion397/data/datasets/GEMINI/Training_220315/val/",
+            sample_dataset = ImageDataset(dataroot=config.valid_image_dir,
                                             image_size=96, upscale_factor=4, mode="train")
-            (low_img, rgb_img, high_img) = sample_dataset.getImage(10)
+            (low_img, rgb_img, high_img, _) = sample_dataset.getImage(10)
 
             with amp.autocast():
                 

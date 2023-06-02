@@ -72,22 +72,18 @@ class Config():
         # ==============================================================================
         if self.mode == "train_srgan":
             # Dataset address
-            if 0:
-                self.train_image_dir = "/home/lion397/data/datasets/GEMINI/Training_All_221201/train/IR_HIGH"
-                self.valid_image_dir = "/home/lion397/data/datasets/GEMINI/Training_All_221201/val/IR_HIGH"
-            else:
-                self.train_image_dir = "/home/lion397/data/datasets/GEMINI/Training_All_221201/train"
-                self.valid_image_dir = "/home/lion397/data/datasets/GEMINI/Training_All_221201/val"
+            self.train_image_dir = "/home/lion397/data/datasets/GEMINI/TLinear_All_2023_06_01/train"
+            self.valid_image_dir = "/home/lion397/data/datasets/GEMINI/TLinear_All_2023_06_01/val"
 
 
             self.image_size = 256
             self.batch_size = 4
-            self.num_workers = 4 # more than 4 is slower
+            self.num_workers = 1 # more than 4 is slower
 
             # Incremental training and migration training
-            self.resume = False
+            self.resume = True
             self.strict = False
-            self.start_epoch = 0
+            self.start_epoch = 1373
             self.resume_d_weight = f"results/{exp_name}/d-last.pth"
             self.resume_g_weight = f"results/{exp_name}/g-last.pth"
 
@@ -104,7 +100,7 @@ class Config():
             self.adversarial_weight_step_size = 50
             self.adversarial_weight_step_rate = 2
 
-            self.similaity_weight = 0.1
+            self.similaity_weight = 1.0
 
             # Adam optimizer parameter for Discriminator
             self.d_model_lr = 1e-4 # Defalut 1e-4

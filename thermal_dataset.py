@@ -15,7 +15,6 @@
 import io
 import os
 
-import lmdb
 import numpy as np
 from PIL import Image
 from torch import Tensor
@@ -73,9 +72,9 @@ class ThermalImageDataset(Dataset):
         rgb_dataroot = os.path.join(dataroot,"RGB")
 
         super(ThermalImageDataset, self).__init__()
-        self.low_filenames = [os.path.join(low_dataroot, x) for x in os.listdir(low_dataroot) if x.split('.')[-1] in ["jpg","png","bmp"]]
+        self.low_filenames = [os.path.join(low_dataroot, x) for x in os.listdir(low_dataroot) if x.split('.')[-1] in ["jpg","png","tiff"]]
         self.low_filenames.sort()
-        self.high_filenames = [os.path.join(high_dataroot, x) for x in os.listdir(high_dataroot) if x.split('.')[-1] in ["jpg","png","bmp"]]
+        self.high_filenames = [os.path.join(high_dataroot, x) for x in os.listdir(high_dataroot) if x.split('.')[-1] in ["jpg","png","tiff"]]
         self.high_filenames.sort()
 
         self.rgb_filenames = [os.path.join(rgb_dataroot, x) for x in os.listdir(rgb_dataroot) if x.split('.')[-1] in ["jpg","png","bmp"]]
@@ -123,10 +122,25 @@ class ThermalImageDataset(Dataset):
 
 
     def getImage(self, batch_index: int):
+
         try:
             # Read a batch of image data
-            self.lr_image = cv2.imread(self.low_filenames[batch_index])  # FLIR
-            self.hr_image = cv2.imread(self.high_filenames[batch_index]) # VarioCAM
+            # FLIR
+            if self.low_filenames[batch_index].split('.')[-1] == "tiff":
+                self.lr_image = cv2.imread(self.low_filenames[batch_index],-1)  
+                # Convert to Celsius
+                self.lr_image = self.lr_image / 100 - 273.15
+            else:
+                self.lr_image = cv2.imread(self.low_filenames[batch_index])  # FLIR
+
+            # VarioCAM
+            if self.high_filenames[batch_index].split('.')[-1] == "tiff":
+                self.hr_image = cv2.imread(self.high_filenames[batch_index],-1)
+                # Convert to Celsius
+                self.hr_image = self.hr_image / 100 - 273.15
+            else:
+                self.hr_image = cv2.imread(self.high_filenames[batch_index])
+
             self.rgb_image = cv2.imread(self.rgb_filenames[batch_index])
 
             # Shape check 1
@@ -144,27 +158,28 @@ class ThermalImageDataset(Dataset):
                 pass
             else:
                 self.lr_image = cv2.resize(self.lr_image,dsize=(self.hr_image.shape[1]//self.upscale_factor,self.hr_image.shape[0]//self.upscale_factor))
-
-            if 1:
-                self.lr_image = cv2.cvtColor(self.lr_image,cv2.COLOR_BGR2GRAY)
-                self.hr_image = cv2.cvtColor(self.hr_image,cv2.COLOR_BGR2GRAY)
-
-            cv2.normalize(self.lr_image, self.lr_image, 0, 255, cv2.NORM_MINMAX)
-            cv2.normalize(self.hr_image, self.hr_image, 0, 255, cv2.NORM_MINMAX)
+                
         except Exception as inst:
             print(type(inst))    # the exception instance
             print(inst.args)     # arguments stored in .args
             print(inst)         
             print(f"Error reading {self.low_filenames[batch_index]}")
+ 
 
+        norm_info_dict = {}
+        norm_info_dict["lr_image"] = [self.lr_image.min(), self.lr_image.max()]
+        norm_info_dict["hr_image"] = [self.hr_image.min(), self.hr_image.max()]
+
+        self.lr_image = cv2.normalize(self.lr_image, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+        self.hr_image = cv2.normalize(self.hr_image, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
         
-        return self.lr_image, self.rgb_image, self.hr_image
+        return self.lr_image, self.rgb_image, self.hr_image, norm_info_dict
 
 
 
     def __getitem__(self, batch_index: int) -> [Tensor, Tensor]:
         
-        (lr_image, rgb_image, hr_image) = self.getImage(batch_index)
+        (lr_image, rgb_image, hr_image, norm_info_dict) = self.getImage(batch_index)
 
         if self.random_crop:
             lr_crop_w = self.image_size // self.upscale_factor
@@ -210,7 +225,7 @@ class ThermalImageDataset(Dataset):
         hr_tensor = imgproc.image2tensor(hr_image, range_norm=False, half=False)
         rgb_tensor = imgproc.image2tensor(rgb_image, range_norm=False, half=False)
 
-        return lr_tensor, rgb_tensor, hr_tensor
+        return lr_tensor, rgb_tensor, hr_tensor, norm_info_dict
 
     def __len__(self) -> int:
         return len(self.low_filenames)
@@ -218,10 +233,39 @@ class ThermalImageDataset(Dataset):
 
 if __name__ == "__main__":
 
-    sample_dataset = ThermalImageDataset(dataroot="/home/lion397/data/datasets/GEMINI/Training_220315/train/",
-                                        image_size=96, upscale_factor=4, mode="train")
+    sample_dataset = ThermalImageDataset(dataroot="/Users/lion397/Library/CloudStorage/GoogleDrive-hspyun@ucdavis.edu/Shared drives/PAIBL_Heesup_Datasets/GEMINI/datasets/ThermalCamera/Final/TLinear_All_2023_06_01/train",
+                                        image_size=96, upscale_factor=1, mode="train")
 
-    for i in range(len(sample_dataset.low_filenames)):
-        (low_img, rgb_img, high_img) = sample_dataset.getImage(i)
-        (low_tensor, rgb_tensor, high_tensor) = sample_dataset[i]
+    i = 0
+    while True:
+    #for i in range(len(sample_dataset.low_filenames)):
+        i = np.clip(i,0,len(sample_dataset.low_filenames)-1)
+        (low_img, rgb_img, high_img, norm_info_dict) = sample_dataset.getImage(i)
+        # Convert celcius to uint8
+        low_img_vis = cv2.normalize(low_img, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+        high_img_vis = cv2.normalize(high_img, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+        
+        (low_tensor, rgb_tensor, high_tensor, norm_info_dict) = sample_dataset[i]
 
+        if 1:
+            disp_img = cv2.hconcat((cv2.resize(low_img_vis,dsize=(0,0),fx=4, fy=4),high_img_vis))
+            disp_img = cv2.cvtColor(disp_img,cv2.COLOR_GRAY2BGR)
+            disp_img = cv2.hconcat((rgb_img,disp_img))
+            #disp_img = cv2.resize(disp_img,dsize=(0,0),fx=1/4, fy=1/4)
+            cv2.imshow("disp_img",disp_img)
+            print(f"{sample_dataset.low_filenames[i]}")
+
+            key = cv2.waitKey(-1)
+            if key == ord("q"):
+                break
+            elif key == ord("a"):
+                i -= 1
+            elif key == ord("d"):
+                i += 1
+            elif key == ord("s"):
+                i -= 10
+            elif key == ord("w"):
+                i += 10
+                # os.sys.exit(0)
+        
+            
