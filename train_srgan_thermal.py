@@ -37,7 +37,7 @@ from torchvision.transforms import functional as F
 autocast_on = False
 interrupted = False
 
-config = Config(mode="train_srgan", exp_name="2023-06-01-ThermalRGB_HRMSE_RGBNCC_RealTemp")
+config = Config(mode="train_srgan", exp_name="2023-06-02-ThermalRGB_HRMSE_HRNCC_RealTemp")
 
 def handler(signum, _):
     print(f'Application is terminated by {signal.Signals(signum).name}\n')
@@ -372,8 +372,8 @@ def train(discriminator,
 
         rgb_gray = F.rgb_to_grayscale(rgb)
         # similaity_val, _ = similaity_criterion(rgb_gray, hr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
-        similaity_val, _ = similaity_criterion(rgb_gray, sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
-        #similaity_val, _ = similaity_criterion(hr.detach(), sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
+        #similaity_val, _ = similaity_criterion(rgb_gray, sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
+        similaity_val, _ = similaity_criterion(hr.detach(), sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
         similaity_loss = config.similaity_weight * similaity_val # Loss function for Gradient Differnce
 
         # Count discriminator total loss
@@ -458,8 +458,8 @@ def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, similaity_
 
             rgb_gray = F.rgb_to_grayscale(rgb)
             # similaity_val, _ = similaity_criterion(rgb_gray, hr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
-            similaity_val, _ = similaity_criterion(rgb_gray, sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
-            # similaity_val, _ = similaity_criterion(hr.detach(), sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
+            # similaity_val, _ = similaity_criterion(rgb_gray, sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
+            similaity_val, _ = similaity_criterion(hr.detach(), sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
             similaity_loss = config.similaity_weight * similaity_val # Loss function for Gradient Differnce
 
             ssimres.update(ssim_val.item(), hr.size(0))
@@ -485,29 +485,21 @@ def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, similaity_
         
         if epoch % 10 == 0:
             # Test Image
-            sample_dataset = ImageDataset(dataroot=config.valid_image_dir,
-                                            image_size=96, upscale_factor=4, mode="train")
-            (low_img, rgb_img, high_img, _) = sample_dataset.getImage(10)
-
+            sample_dataset = ImageDataset(dataroot=config.valid_image_dir, image_size=config.image_size, upscale_factor=4, mode="val",random_crop=False)
+            # (low_img, rgb_img, high_img) = sample_dataset.getImage(5)
+            (low_img, rgb_img, high_ir, thermal_info) = sample_dataset[5] # 늘 쓰던 Referene image
             with amp.autocast():
-                
-                low_img = torch.FloatTensor(low_img)[None, None,:, :]/255.0
-                rgb_img = rgb_img[:, :, [2, 1, 0]] # swap channel from RGB to BGR
-                rgb_img = torch.FloatTensor(rgb_img).permute(2,0,1).unsqueeze(0)/255.0
-                
-                high_img = torch.FloatTensor(high_img)[None, None,:, :]/255.0
-
-                lr = low_img.to(config.device, non_blocking=True)
-                rgb = rgb_img.to(config.device, non_blocking=True)
-                high_img = high_img.to(config.device, non_blocking=True)
-            
+                lr = low_img.unsqueeze(0).to(config.device, non_blocking=True)
+                rgb = rgb_img.unsqueeze(0).to(config.device, non_blocking=True)
                 sr = model(lr, rgb)
 
             if epoch == 0:
                 # Write once
                 writer.add_image("Valid/Input_IR",lr.squeeze(0),epoch + 1 )
-                writer.add_image("Valid/Input_RGB",rgb.squeeze(0),epoch + 1 )
-                writer.add_image("Valid/GroundTruth",high_img.squeeze(0),epoch + 1 )
+                # Change BGR tensor to RGB tensor
+                bgr = rgb[:, [2, 1, 0]] 
+                writer.add_image("Valid/Input_RGB",bgr.squeeze(0),epoch + 1 )
+                writer.add_image("Valid/GroundTruth",high_ir,epoch + 1 )
             # Write everytime
             writer.add_image("Valid/Output",sr.squeeze(0),epoch + 1 )
 

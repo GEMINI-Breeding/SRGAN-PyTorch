@@ -51,6 +51,17 @@ def eulerAnglesToRotationMatrix(theta) :
 
     return R
 
+def calc_temp(image, temp_range):
+    if 0:
+        cv2.normalize(image, None, 0, 1, cv2.NORM_MINMAX).astype(np.float64)
+    else:
+        span = np.max(image) - np.min(image)
+        image = (image - np.min(image)) / span
+    # Check image type
+    res = image * (temp_range[1] - temp_range[0]) + temp_range[0]
+
+
+    return res
 
 class ThermalImageDataset(Dataset):
     """Customize the data set loading function and prepare low/high resolution image data in advance.
@@ -80,45 +91,19 @@ class ThermalImageDataset(Dataset):
         self.rgb_filenames = [os.path.join(rgb_dataroot, x) for x in os.listdir(rgb_dataroot) if x.split('.')[-1] in ["jpg","png","bmp"]]
         self.rgb_filenames.sort()
 
-        if 0:
-            if mode == "train" :
-                self.hr_transforms = transforms.Compose([
-                    transforms.RandomRotation(90),
-                    transforms.RandomHorizontalFlip(0.5),
-                ])
+        self.mode = mode
 
-                self.lr_transforms = transforms.Compose([
-                    transforms.ToPILImage(),
-                    transforms.CenterCrop(image_size // upscale_factor)
-                ])
-            else:
-                self.hr_transforms = transforms.Compose([
-                    transforms.ToPILImage(),
-                ])
-            
-
-
-            if 0:
-                self.lr_transforms = transforms.Resize(image_size // upscale_factor)
-            else:
-                self.lr_transforms = transforms.Compose([
-                    transforms.ToPILImage(),
-                    transforms.CenterCrop(image_size // upscale_factor)
-                ])
-                # There is no way to random crop both lr and hr image in same position
-        else:
-            self.hr_transforms = transforms.Compose([
-                    transforms.ToPILImage(),
-                ])
-            self.lr_transforms = transforms.Compose([
-                    transforms.ToPILImage(),
-                ])
-
+        self.hr_transforms = transforms.Compose([
+                transforms.ToPILImage(),
+            ])
+        self.lr_transforms = transforms.Compose([
+                transforms.ToPILImage(),
+            ])
+        
         self.image_size = image_size
         self.upscale_factor = upscale_factor
         self.random_crop = random_crop
 
-        
 
 
     def getImage(self, batch_index: int):
@@ -165,21 +150,14 @@ class ThermalImageDataset(Dataset):
             print(inst)         
             print(f"Error reading {self.low_filenames[batch_index]}")
  
-
-        norm_info_dict = {}
-        norm_info_dict["lr_image"] = [self.lr_image.min(), self.lr_image.max()]
-        norm_info_dict["hr_image"] = [self.hr_image.min(), self.hr_image.max()]
-
-        self.lr_image = cv2.normalize(self.lr_image, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
-        self.hr_image = cv2.normalize(self.hr_image, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
         
-        return self.lr_image, self.rgb_image, self.hr_image, norm_info_dict
+        return self.lr_image, self.rgb_image, self.hr_image
 
 
 
     def __getitem__(self, batch_index: int) -> [Tensor, Tensor]:
         
-        (lr_image, rgb_image, hr_image, norm_info_dict) = self.getImage(batch_index)
+        (lr_image, rgb_image, hr_image) = self.getImage(batch_index)
 
         if self.random_crop:
             lr_crop_w = self.image_size // self.upscale_factor
@@ -195,29 +173,38 @@ class ThermalImageDataset(Dataset):
             hr_crop_y = int(lr_crop_y * self.upscale_factor)
 
             hr_image = hr_image[hr_crop_y:hr_crop_y+hr_crop_h,hr_crop_x:hr_crop_x+hr_crop_w]
-
             rgb_image = rgb_image[hr_crop_y:hr_crop_y+hr_crop_h,hr_crop_x:hr_crop_x+hr_crop_w]
+        
+        # Calculate temperature range
+        norm_info_dict = {}
+        norm_info_dict["hr"] = [lr_image.min(), lr_image.max()]
+        norm_info_dict["lr"] = [hr_image.min(), hr_image.max()]
+
+        # Convert celcius to uint8
+        lr_image = cv2.normalize(lr_image, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+        hr_image = cv2.normalize(hr_image, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
 
         # Transform image
         hr_image = self.hr_transforms(hr_image)
         lr_image = self.lr_transforms(lr_image)
         rgb_image = self.hr_transforms(rgb_image)
+        
+        if self.mode == "train":
+            if random.random() > 0.5:
+                hr_image = TF.vflip(hr_image)
+                lr_image  = TF.vflip(lr_image)
+                rgb_image  = TF.vflip(rgb_image)
 
-        if random.random() > 0.5:
-            hr_image = TF.vflip(hr_image)
-            lr_image  = TF.vflip(lr_image)
-            rgb_image  = TF.vflip(rgb_image)
+            if random.random() > 0.5:
+                hr_image = TF.hflip(hr_image)
+                lr_image  = TF.hflip(lr_image)
+                rgb_image  = TF.hflip(rgb_image)
 
-        if random.random() > 0.5:
-            hr_image = TF.hflip(hr_image)
-            lr_image  = TF.hflip(lr_image)
-            rgb_image  = TF.hflip(rgb_image)
-
-        if random.random() > 0.5:
-            hr_image =  TF.rotate(hr_image,90)
-            lr_image  = TF.rotate(lr_image,90)
-            rgb_image  = TF.rotate(rgb_image,90)
-       
+            if random.random() > 0.5:
+                hr_image =  TF.rotate(hr_image,90)
+                lr_image  = TF.rotate(lr_image,90)
+                rgb_image  = TF.rotate(rgb_image,90)
+    
 
         # Convert image data into Tensor stream format (PyTorch).
         # Note: The range of input and output is between [0, 1]
@@ -233,14 +220,15 @@ class ThermalImageDataset(Dataset):
 
 if __name__ == "__main__":
 
-    sample_dataset = ThermalImageDataset(dataroot="/Users/lion397/Library/CloudStorage/GoogleDrive-hspyun@ucdavis.edu/Shared drives/PAIBL_Heesup_Datasets/GEMINI/datasets/ThermalCamera/Final/TLinear_All_2023_06_01/train",
-                                        image_size=96, upscale_factor=1, mode="train")
+    upscale_factor = 1
+    sample_dataset = ThermalImageDataset(dataroot="/home/lion397/data/datasets/GEMINI/TLinear_All_2023_06_01/train",
+                                        image_size=96, upscale_factor=upscale_factor, mode="train")
 
     i = 0
     while True:
     #for i in range(len(sample_dataset.low_filenames)):
         i = np.clip(i,0,len(sample_dataset.low_filenames)-1)
-        (low_img, rgb_img, high_img, norm_info_dict) = sample_dataset.getImage(i)
+        (low_img, rgb_img, high_img) = sample_dataset.getImage(i)
         # Convert celcius to uint8
         low_img_vis = cv2.normalize(low_img, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
         high_img_vis = cv2.normalize(high_img, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
@@ -248,7 +236,7 @@ if __name__ == "__main__":
         (low_tensor, rgb_tensor, high_tensor, norm_info_dict) = sample_dataset[i]
 
         if 1:
-            disp_img = cv2.hconcat((cv2.resize(low_img_vis,dsize=(0,0),fx=4, fy=4),high_img_vis))
+            disp_img = cv2.hconcat((cv2.resize(low_img_vis,dsize=(0,0),fx=upscale_factor, fy=upscale_factor),high_img_vis))
             disp_img = cv2.cvtColor(disp_img,cv2.COLOR_GRAY2BGR)
             disp_img = cv2.hconcat((rgb_img,disp_img))
             #disp_img = cv2.resize(disp_img,dsize=(0,0),fx=1/4, fy=1/4)

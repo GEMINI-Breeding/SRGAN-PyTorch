@@ -58,7 +58,7 @@ class Config():
             self.resume_weight = ""
 
             # Total num epochs
-            self.epochs = 100
+            self.epochs = 0
 
             # Adam optimizer parameter for SRResNet(p)
             self.model_lr = 1e-4
@@ -81,15 +81,15 @@ class Config():
             self.num_workers = 1 # more than 4 is slower
 
             # Incremental training and migration training
-            self.resume = True
+            self.resume = False
             self.strict = False
-            self.start_epoch = 1373
+            self.start_epoch = 0
             self.resume_d_weight = f"results/{exp_name}/d-last.pth"
             self.resume_g_weight = f"results/{exp_name}/g-last.pth"
 
             # Total num epochs
             #epochs = sys.maxsize # Very large number
-            self.epochs = 4000 # Very large number
+            self.epochs = 8000 # Very large number
 
             # Loss function weight
 
@@ -100,7 +100,7 @@ class Config():
             self.adversarial_weight_step_size = 50
             self.adversarial_weight_step_rate = 2
 
-            self.similaity_weight = 1.0
+            self.similaity_weight = 0.1
 
             # Adam optimizer parameter for Discriminator
             self.d_model_lr = 1e-4 # Defalut 1e-4
