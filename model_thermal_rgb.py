@@ -129,6 +129,12 @@ class Generator(nn.Module):
             resBlock.append(ResidualConvBlock(64))
         self.resBlock = nn.Sequential(*resBlock)
 
+        # 1x1 conv layer.
+        self.conv_1x1 = nn.Sequential(
+            nn.Conv2d(128, 64, (1, 1), (1, 1), (0, 0)),
+            nn.PReLU(),
+        )
+
         # Second conv layer.
         self.conv_block2 = nn.Sequential(
             nn.Conv2d(64, 64, (3, 3), (1, 1), (1, 1), bias=False),
@@ -190,33 +196,38 @@ class Generator(nn.Module):
             out = self.upsampling(out)
             out = self.conv_block3(out)
         else:
-            # IR
-            # x = self.upsampling_img(x) # Upsample first to make balance RGB and Thermal Block
             out1_x = self.conv_block1(x)
             out_x = self.resBlock(out1_x)
+            out_x = torch.add(out_x, out1_x)
+            out1_x_2 = self.resBlock(out_x)
+            out1_x_2 = torch.add(out1_x_2, out_x)
+            out1_x_2 = torch.add(out1_x_2, out1_x)
+
+            # Upsample 
+            out1_x_2 = self.upsampling(out1_x_2)
+            out1_x = self.upsampling(out1_x) # Pass to before last conv block
 
             # RGB
             out1_y = self.conv_block1_2(y)
-
             out_y = self.resBlock(out1_y)
             out_y = torch.add(out1_y, out_y)
             out1_y_2 = self.resBlock(out_y)
             out1_y_2 = torch.add(out1_y_2, out_y)
-
             out1_y_2 = torch.add(out1_y_2, out1_y)
 
-            # Upsample 
-            out_x = self.upsampling(out_x)
-            out1_x = self.upsampling(out1_x)
-            # Merge
-            out = torch.add(out_x, out1_y_2)
-            out_res = self.resBlock(out)
-            out_res = torch.add(out_res, out)
-            out_res_1 = self.resBlock(out_res)
-            out_res_1 = torch.add(out_res_1, out_res)
-            out_res_1 = torch.add(out_res_1, out1_x)
             
-            out = self.conv_block3(out_res_1)
+            # concat two features
+            out = torch.cat((out1_x_2, out1_y_2), 1)
+            # Add 1x1 conv to make chanel from 128 to 64
+            out = self.conv_1x1(out)
+            out_res = self.trunk(out)
+            out_res = self.conv_block2(out_res)
+            out = torch.add(out_res, out)
+            # Add feature map from IR
+            if 0:
+                out = torch.add(out, out1_x)
+            out = self.conv_block3(out)
+    
 
         return out
 

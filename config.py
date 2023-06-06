@@ -72,18 +72,18 @@ class Config():
         # ==============================================================================
         if self.mode == "train_srgan":
             # Dataset address
-            self.train_image_dir = "/home/lion397/data/datasets/GEMINI/TLinear_All_2023_06_01/train"
-            self.valid_image_dir = "/home/lion397/data/datasets/GEMINI/TLinear_All_2023_06_01/val"
+            self.train_image_dir = "/home/lion397/data/datasets/GEMINI/Training_T4_1_2_3/train"
+            self.valid_image_dir = "/home/lion397/data/datasets/GEMINI/Training_T4_1_2_3/val"
 
 
-            self.image_size = 256
+            self.image_size = 96
             self.batch_size = 4
             self.num_workers = 1 # more than 4 is slower
 
             # Incremental training and migration training
-            self.resume = False
+            self.resume = True
             self.strict = False
-            self.start_epoch = 0
+            self.start_epoch = 1138
             self.resume_d_weight = f"results/{exp_name}/d-last.pth"
             self.resume_g_weight = f"results/{exp_name}/g-last.pth"
 
@@ -95,12 +95,12 @@ class Config():
 
             self.pixel_weight = 1.0
             self.content_weight = 1.0
-            self.adversarial_weight = 0.001
+            self.adversarial_weight = 0.002
 
-            self.adversarial_weight_step_size = 50
+            self.adversarial_weight_step_size = 1000
             self.adversarial_weight_step_rate = 2
 
-            self.similaity_weight = 0.1
+            self.similaity_weight = 1.0
 
             # Adam optimizer parameter for Discriminator
             self.d_model_lr = 1e-4 # Defalut 1e-4

@@ -15,6 +15,12 @@
 import io
 import os
 
+# get current file's directory
+__dir__ = os.path.dirname(os.path.abspath(__file__))
+import sys
+# Append root directory
+sys.path.append(os.path.abspath(os.path.join(__dir__)))
+
 import numpy as np
 from PIL import Image
 from torch import Tensor
@@ -184,6 +190,12 @@ class ThermalImageDataset(Dataset):
         lr_image = cv2.normalize(lr_image, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
         hr_image = cv2.normalize(hr_image, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
 
+        # Convert to Gray if the image is RGB
+        if len(lr_image.shape) == 3:
+            lr_image = cv2.cvtColor(lr_image,cv2.COLOR_BGR2GRAY)
+        if len(hr_image.shape) == 3:
+            hr_image = cv2.cvtColor(hr_image,cv2.COLOR_BGR2GRAY)
+
         # Transform image
         hr_image = self.hr_transforms(hr_image)
         lr_image = self.lr_transforms(lr_image)
@@ -222,6 +234,8 @@ if __name__ == "__main__":
 
     upscale_factor = 1
     sample_dataset = ThermalImageDataset(dataroot="/home/lion397/data/datasets/GEMINI/TLinear_All_2023_06_01/train",
+    #sample_dataset = ThermalImageDataset(dataroot="/home/lion397/data/datasets/GEMINI/Training_T4_1_2_3/train",
+    #sample_dataset = ThermalImageDataset(dataroot="/home/GEMINI/Dataset_processing/Davis_Legumes/2022-07-06/Thermal_Matched_old",
                                         image_size=96, upscale_factor=upscale_factor, mode="train")
 
     i = 0
@@ -229,7 +243,7 @@ if __name__ == "__main__":
     #for i in range(len(sample_dataset.low_filenames)):
         i = np.clip(i,0,len(sample_dataset.low_filenames)-1)
         (low_img, rgb_img, high_img) = sample_dataset.getImage(i)
-        # Convert celcius to uint8
+        # Convert celcius to uint8ddd
         low_img_vis = cv2.normalize(low_img, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
         high_img_vis = cv2.normalize(high_img, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
         
@@ -237,9 +251,12 @@ if __name__ == "__main__":
 
         if 1:
             disp_img = cv2.hconcat((cv2.resize(low_img_vis,dsize=(0,0),fx=upscale_factor, fy=upscale_factor),high_img_vis))
-            disp_img = cv2.cvtColor(disp_img,cv2.COLOR_GRAY2BGR)
+            # Check the image is color or gray
+            if len(disp_img.shape) == 2:
+                disp_img = cv2.cvtColor(disp_img,cv2.COLOR_GRAY2BGR)
+            
             disp_img = cv2.hconcat((rgb_img,disp_img))
-            #disp_img = cv2.resize(disp_img,dsize=(0,0),fx=1/4, fy=1/4)
+            disp_img = cv2.resize(disp_img,dsize=(0,0),fx=1/4, fy=1/4)
             cv2.imshow("disp_img",disp_img)
             print(f"{sample_dataset.low_filenames[i]}")
 
@@ -256,4 +273,3 @@ if __name__ == "__main__":
                 i += 10
                 # os.sys.exit(0)
         
-            

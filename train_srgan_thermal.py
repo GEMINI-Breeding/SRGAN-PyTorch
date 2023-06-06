@@ -37,7 +37,7 @@ from torchvision.transforms import functional as F
 autocast_on = False
 interrupted = False
 
-config = Config(mode="train_srgan", exp_name="2023-06-02-ThermalRGB_HRMSE_HRNCC_RealTemp")
+config = Config(mode="train_srgan", exp_name="2023-06-06-ThermalRGB_HRMSE_HRNCC_T4Data")
 
 def handler(signum, _):
     print(f'Application is terminated by {signal.Signals(signum).name}\n')
@@ -149,7 +149,7 @@ def load_dataset() -> [DataLoader, DataLoader]:
     """
     # Initialize the LMDB data set class and write the contents of the LMDB database file into memory
     train_datasets = ImageDataset(config.train_image_dir, config.image_size, config.upscale_factor, "train")
-    valid_datasets = ImageDataset(config.valid_image_dir, config.image_size, config.upscale_factor, "valid")
+    valid_datasets = ImageDataset(config.valid_image_dir, config.image_size, config.upscale_factor, "val")
     # Make it into a data set type supported by PyTorch
     train_dataloader = DataLoader(train_datasets,
                                   batch_size=config.batch_size,
@@ -372,7 +372,7 @@ def train(discriminator,
 
         rgb_gray = F.rgb_to_grayscale(rgb)
         # similaity_val, _ = similaity_criterion(rgb_gray, hr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
-        #similaity_val, _ = similaity_criterion(rgb_gray, sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
+        # similaity_val, _ = similaity_criterion(rgb_gray, sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
         similaity_val, _ = similaity_criterion(hr.detach(), sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
         similaity_loss = config.similaity_weight * similaity_val # Loss function for Gradient Differnce
 
