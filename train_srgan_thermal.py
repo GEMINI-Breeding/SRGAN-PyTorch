@@ -37,7 +37,7 @@ from torchvision.transforms import functional as F
 autocast_on = False
 interrupted = False
 
-config = Config(mode="train_srgan", exp_name="2023-06-06-ThermalRGB_HRMSE_HRNCC_T4Data")
+config = Config(mode="train_srgan", exp_name="2023-06-07-ThermalRGB_HRMSE_HRNCC_STN")
 
 def handler(signum, _):
     print(f'Application is terminated by {signal.Signals(signum).name}\n')
@@ -118,7 +118,7 @@ def main():
         
         if True:
             if epoch % 10 == 0:
-                torch.save(discriminator.state_dict(), os.path.join(results_dir, f"d_epoch_{epoch + 1}.pth"))
+                # torch.save(discriminator.state_dict(), os.path.join(results_dir, f"d_epoch_{epoch + 1}.pth"))
                 torch.save(generator.state_dict(), os.path.join(results_dir, f"g_epoch_{epoch + 1}.pth"))
             
         if is_best:
@@ -347,6 +347,15 @@ def train(discriminator,
         # Initialize the generator optimizer gradient
         g_optimizer.zero_grad()
 
+        if 1:
+            if 0:
+                adversarial_weight_mult = (config.adversarial_weight_step_rate)**(epoch // config.adversarial_weight_step_size)
+                adversarial_weight = min(config.adversarial_weight * adversarial_weight_mult,0.1)
+            else:
+                adversarial_weight = min(config.adversarial_weight + 0.001 * (epoch // config.adversarial_weight_step_size),0.01)
+        else:
+            adversarial_weight = config.adversarial_weight
+
         # Calculate the loss of the generator on the super-resolution image
         if autocast_on:
             with amp.autocast():
@@ -357,7 +366,7 @@ def train(discriminator,
                 else:
                     pixel_loss = config.pixel_weight * pixel_criterion(sr, hr)
                 content_loss = config.content_weight * content_criterion(sr, hr.detach())
-                adversarial_loss = config.adversarial_weight * adversarial_criterion(output, real_label) 
+                adversarial_loss = adversarial_weight * adversarial_criterion(output, real_label) 
         else:
             output = discriminator(sr)
             if 0:
@@ -366,7 +375,7 @@ def train(discriminator,
             else:
                 pixel_loss = config.pixel_weight * pixel_criterion(sr, hr)
             content_loss = config.content_weight * content_criterion(sr, hr.detach())
-            adversarial_loss = config.adversarial_weight * adversarial_criterion(output, real_label)
+            adversarial_loss = adversarial_weight * adversarial_criterion(output, real_label)
 
         
 
@@ -487,7 +496,7 @@ def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, similaity_
             # Test Image
             sample_dataset = ImageDataset(dataroot=config.valid_image_dir, image_size=config.image_size, upscale_factor=4, mode="val",random_crop=False)
             # (low_img, rgb_img, high_img) = sample_dataset.getImage(5)
-            (low_img, rgb_img, high_ir, thermal_info) = sample_dataset[5] # 늘 쓰던 Referene image
+            (low_img, rgb_img, high_ir, thermal_info) = sample_dataset[0] 
             with amp.autocast():
                 lr = low_img.unsqueeze(0).to(config.device, non_blocking=True)
                 rgb = rgb_img.unsqueeze(0).to(config.device, non_blocking=True)

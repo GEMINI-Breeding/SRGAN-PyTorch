@@ -118,37 +118,37 @@ class ThermalImageDataset(Dataset):
             # Read a batch of image data
             # FLIR
             if self.low_filenames[batch_index].split('.')[-1] == "tiff":
-                self.lr_image = cv2.imread(self.low_filenames[batch_index],-1)  
+                self.lr_celcious_image = cv2.imread(self.low_filenames[batch_index],-1)  
                 # Convert to Celsius
-                self.lr_image = self.lr_image / 100 - 273.15
+                self.lr_celcious_image = self.lr_celcious_image / 100 - 273.15
             else:
-                self.lr_image = cv2.imread(self.low_filenames[batch_index])  # FLIR
+                self.lr_celcious_image = cv2.imread(self.low_filenames[batch_index])  # FLIR
 
             # VarioCAM
             if self.high_filenames[batch_index].split('.')[-1] == "tiff":
-                self.hr_image = cv2.imread(self.high_filenames[batch_index],-1)
+                self.hr_celcious_image = cv2.imread(self.high_filenames[batch_index],-1)
                 # Convert to Celsius
-                self.hr_image = self.hr_image / 100 - 273.15
+                self.hr_celcious_image = self.hr_celcious_image / 100 - 273.15
             else:
-                self.hr_image = cv2.imread(self.high_filenames[batch_index])
+                self.hr_celcious_image = cv2.imread(self.high_filenames[batch_index])
 
             self.rgb_image = cv2.imread(self.rgb_filenames[batch_index])
 
             # Shape check 1
-            h_frac = self.hr_image.shape[0] % self.upscale_factor
-            w_frac = self.hr_image.shape[1] % self.upscale_factor
+            h_frac = self.hr_celcious_image.shape[0] % self.upscale_factor
+            w_frac = self.hr_celcious_image.shape[1] % self.upscale_factor
             if h_frac == 0 and w_frac == 0:
                 pass
             else:
-                self.hr_image = cv2.resize(self.hr_image, dsize=(self.hr_image.shape[1]-w_frac,self.hr_image.shape[0]-h_frac))
+                self.hr_celcious_image = cv2.resize(self.hr_celcious_image, dsize=(self.hr_celcious_image.shape[1]-w_frac,self.hr_celcious_image.shape[0]-h_frac))
                 self.rgb_image = cv2.resize(self.rgb_image, dsize=(self.rgb_image.shape[1]-w_frac,self.rgb_image.shape[0]-h_frac))
             
 
             # Shape check
-            if self.hr_image.shape[0] // self.upscale_factor == self.lr_image.shape[0] and self.hr_image.shape[1] // self.upscale_factor == self.lr_image.shape[1]:
+            if self.hr_celcious_image.shape[0] // self.upscale_factor == self.lr_celcious_image.shape[0] and self.hr_celcious_image.shape[1] // self.upscale_factor == self.lr_celcious_image.shape[1]:
                 pass
             else:
-                self.lr_image = cv2.resize(self.lr_image,dsize=(self.hr_image.shape[1]//self.upscale_factor,self.hr_image.shape[0]//self.upscale_factor))
+                self.lr_celcious_image = cv2.resize(self.lr_celcious_image,dsize=(self.hr_celcious_image.shape[1]//self.upscale_factor,self.hr_celcious_image.shape[0]//self.upscale_factor))
                 
         except Exception as inst:
             print(type(inst))    # the exception instance
@@ -157,7 +157,7 @@ class ThermalImageDataset(Dataset):
             print(f"Error reading {self.low_filenames[batch_index]}")
  
         
-        return self.lr_image, self.rgb_image, self.hr_image
+        return self.lr_celcious_image, self.rgb_image, self.hr_celcious_image
 
 
 
@@ -183,8 +183,8 @@ class ThermalImageDataset(Dataset):
         
         # Calculate temperature range
         norm_info_dict = {}
-        norm_info_dict["hr"] = [lr_image.min(), lr_image.max()]
-        norm_info_dict["lr"] = [hr_image.min(), hr_image.max()]
+        norm_info_dict["lr"] = [lr_image.min(), lr_image.max()]
+        norm_info_dict["hr"] = [hr_image.min(), hr_image.max()]
 
         # Convert celcius to uint8
         lr_image = cv2.normalize(lr_image, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
@@ -272,4 +272,3 @@ if __name__ == "__main__":
             elif key == ord("w"):
                 i += 10
                 # os.sys.exit(0)
-        

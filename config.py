@@ -81,9 +81,9 @@ class Config():
             self.num_workers = 1 # more than 4 is slower
 
             # Incremental training and migration training
-            self.resume = True
+            self.resume = False
             self.strict = False
-            self.start_epoch = 1138
+            self.start_epoch = 0
             self.resume_d_weight = f"results/{exp_name}/d-last.pth"
             self.resume_g_weight = f"results/{exp_name}/g-last.pth"
 
@@ -95,7 +95,7 @@ class Config():
 
             self.pixel_weight = 1.0
             self.content_weight = 1.0
-            self.adversarial_weight = 0.002
+            self.adversarial_weight = 0.004
 
             self.adversarial_weight_step_size = 1000
             self.adversarial_weight_step_rate = 2

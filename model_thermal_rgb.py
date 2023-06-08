@@ -21,6 +21,9 @@ import torch.nn.functional as F
 import torchvision.models as models
 from torch import Tensor
 
+from models.networks import ResnetGenerator
+from models.spatial_transformer_net import AffineSTN
+
 __all__ = [
     "ResidualConvBlock",
     "Discriminator", "Generator",
@@ -104,18 +107,25 @@ class Discriminator(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self) -> None:
+    def __init__(self,image_size=96) -> None:
         super(Generator, self).__init__()
+
+        self.image_size = image_size
+        self.stn_image_size = 96
         # First conv layer.
-        self.conv_block1 = nn.Sequential(
+        self.conv_block1_ir = nn.Sequential(
             nn.Conv2d(1, 64, (3, 3), (1, 1), (1, 1)), # for IR image (1, 64, 3)
             nn.PReLU(),
         )
 
-        self.conv_block1_2 = nn.Sequential(
+        self.conv_block1_rgb = nn.Sequential(
             nn.Conv2d(3, 64, (3, 3), (1, 1), (1, 1)), # For RGB Image (3, 64, 3)
             nn.PReLU(),
         )
+
+        self.rgb_feature_G = ResnetGenerator(3, 64, 64, norm_layer=nn.BatchNorm2d, use_dropout=False)
+        self.stn = AffineSTN(nc_a=64, nc_b=64, height=self.stn_image_size, width=self.stn_image_size, init_func='normal')
+        
 
         # Features trunk blocks.
         trunk = []
@@ -166,20 +176,22 @@ class Generator(nn.Module):
 
 
         # Output layer.
-        #self.conv_block3 = nn.Conv2d(64, 3, (9, 9), (1, 1), (4, 4))
-        self.conv_block3 = nn.Sequential(
-            nn.Conv2d(64, 64, (1, 1), (1, 1), (0, 0)),
-            nn.PReLU(),
-            nn.Conv2d(64, 32, (3, 3), (1, 1), (1, 1)),
-            nn.PReLU(),
-            nn.Conv2d(32, 32, (3, 3), (1, 1), (1, 1)),
-            nn.PReLU(),
-            nn.Conv2d(32, 32, (3, 3), (1, 1), (1, 1)),
-            nn.PReLU(),
-            nn.Conv2d(32, 32, (3, 3), (1, 1), (1, 1)),
-            nn.PReLU(),
-            nn.Conv2d(32, 1, (1, 1), (1, 1), (0, 0))
-        )
+        if 0:
+            self.conv_block3 = nn.Conv2d(64, 1, (9, 9), (1, 1), (4, 4))
+        else:
+            self.conv_block3 = nn.Sequential(
+                nn.Conv2d(64, 64, (1, 1), (1, 1), (0, 0)),
+                nn.PReLU(),
+                nn.Conv2d(64, 32, (3, 3), (1, 1), (1, 1)),
+                nn.PReLU(),
+                nn.Conv2d(32, 32, (3, 3), (1, 1), (1, 1)),
+                nn.PReLU(),
+                nn.Conv2d(32, 32, (3, 3), (1, 1), (1, 1)),
+                nn.PReLU(),
+                nn.Conv2d(32, 32, (3, 3), (1, 1), (1, 1)),
+                nn.PReLU(),
+                nn.Conv2d(32, 1, (1, 1), (1, 1), (0, 0))
+            )
         # Initialize neural network weights.
         self._initialize_weights()
 
@@ -188,46 +200,53 @@ class Generator(nn.Module):
 
     # Support torch.script function.
     def _forward_impl(self, x, y: Tensor) -> Tensor:
-        if 0:
-            out1 = self.conv_block1(x)
-            out = self.trunk(out1)
-            out2 = self.conv_block2(out)
-            out = torch.add(out1, out2)
-            out = self.upsampling(out)
-            out = self.conv_block3(out)
-        else:
-            out1_x = self.conv_block1(x)
-            out_x = self.resBlock(out1_x)
-            out_x = torch.add(out_x, out1_x)
-            out1_x_2 = self.resBlock(out_x)
-            out1_x_2 = torch.add(out1_x_2, out_x)
-            out1_x_2 = torch.add(out1_x_2, out1_x)
 
-            # Upsample 
-            out1_x_2 = self.upsampling(out1_x_2)
-            out1_x = self.upsampling(out1_x) # Pass to before last conv block
+        # IR
+        out_ir_1 = self.conv_block1_ir(x)
+        out_ir_2 = self.trunk(out_ir_1)
+        out_ir_3 = self.conv_block2(out_ir_2)
+        out_ir_4 = torch.add(out_ir_1, out_ir_3)
 
-            # RGB
-            out1_y = self.conv_block1_2(y)
-            out_y = self.resBlock(out1_y)
-            out_y = torch.add(out1_y, out_y)
-            out1_y_2 = self.resBlock(out_y)
-            out1_y_2 = torch.add(out1_y_2, out_y)
-            out1_y_2 = torch.add(out1_y_2, out1_y)
+        out_ir_1 = self.upsampling(out_ir_1) # Pass to before last conv block
+        out_ir_4 = self.upsampling(out_ir_4) # Pass to RGBT Trunk
 
+        # RGB
+        out_rgb_1 = self.conv_block1_rgb(y)
+        out_rgb_2 = self.trunk(out_rgb_1)
+        out_rgb_3 = self.conv_block2(out_rgb_2)
+        out_rgb_4 = torch.add(out_rgb_1, out_rgb_3)
+
+        # STN
+        if 1:
+            # Resize features before STN. width=96, height=96                
+            out_rgb_4_stn = F.interpolate(out_rgb_4, size=(self.stn_image_size, self.stn_image_size), mode='bilinear', align_corners=False)
+            out_ir_1_stn = F.interpolate(out_ir_1, size=(self.stn_image_size, self.stn_image_size), mode='bilinear', align_corners=False)
             
-            # concat two features
-            out = torch.cat((out1_x_2, out1_y_2), 1)
-            # Add 1x1 conv to make chanel from 128 to 64
-            out = self.conv_1x1(out)
-            out_res = self.trunk(out)
-            out_res = self.conv_block2(out_res)
-            out = torch.add(out_res, out)
-            # Add feature map from IR
-            if 0:
-                out = torch.add(out, out1_x)
-            out = self.conv_block3(out)
-    
+            # Spatial Transformer Network to calculate theta
+            _, _, theta = self.stn(out_rgb_4_stn,out_ir_1_stn)
+            # Transform Features
+            resampling_grid = F.affine_grid(theta.view(-1, 2, 3), out_rgb_4.size())
+            out_rgb_4 = F.grid_sample(out_rgb_4, resampling_grid, mode='bilinear', padding_mode='zeros', align_corners=False)
+        
+        # Add RGB + Thermal
+        if 1:
+            # Concat channels
+            out_rgbt_1 = torch.cat((out_ir_4, out_rgb_4), 1) 
+            out_rgbt_1 = self.conv_1x1(out_rgbt_1)
+        else:
+            # Add channels
+            out_rgbt_1 = torch.add(out_ir_4, out_rgb_4)
+
+        out_rgbt_2 = self.trunk(out_rgbt_1)
+        out_rgbt_3 = self.conv_block2(out_rgbt_2)
+
+        out_rgbt_3 = torch.add(out_rgbt_1, out_rgbt_3)
+
+        # Add output of first conv block
+        out_rgbt_3 = torch.add(out_rgbt_3, out_ir_1)
+
+        # Final conv
+        out = self.conv_block3(out_rgbt_3)
 
         return out
 
