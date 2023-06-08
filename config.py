@@ -76,16 +76,17 @@ class Config():
             self.valid_image_dir = "/home/lion397/data/datasets/GEMINI/Training_T4_1_2_3/val"
 
 
-            self.image_size = 96
+            self.image_size = 256
+            self.d_image_size = 96
             self.batch_size = 4
             self.num_workers = 1 # more than 4 is slower
 
             # Incremental training and migration training
-            self.resume = False
+            self.resume = True
             self.strict = False
-            self.start_epoch = 0
-            self.resume_d_weight = f"results/{exp_name}/d-last.pth"
-            self.resume_g_weight = f"results/{exp_name}/g-last.pth"
+            self.start_epoch = 180
+            self.resume_d_weight = f"results/{exp_name}/d-best.pth"
+            self.resume_g_weight = f"results/{exp_name}/g-best.pth"
 
             # Total num epochs
             #epochs = sys.maxsize # Very large number
@@ -100,7 +101,7 @@ class Config():
             self.adversarial_weight_step_size = 1000
             self.adversarial_weight_step_rate = 2
 
-            self.similaity_weight = 1.0
+            self.similaity_weight = 0.1
 
             # Adam optimizer parameter for Discriminator
             self.d_model_lr = 1e-4 # Defalut 1e-4

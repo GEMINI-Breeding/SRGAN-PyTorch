@@ -92,6 +92,8 @@ class Discriminator(nn.Module):
             nn.LeakyReLU(0.2, True),
         )
 
+        self.downsample_img = nn.UpsamplingBilinear2d(size=(image_size,image_size))
+
         self.classifier = nn.Sequential(
             nn.Linear(512 * image_size//16 * image_size//16, 1024),
             nn.LeakyReLU(0.2, True),
@@ -99,7 +101,8 @@ class Discriminator(nn.Module):
         )
 
     def forward(self, x: Tensor) -> Tensor:
-        out = self.features(x)
+        oux = self.downsample_img(x)
+        out = self.features(oux)
         out = torch.flatten(out, 1)
         out = self.classifier(out)
 
@@ -242,8 +245,9 @@ class Generator(nn.Module):
 
         out_rgbt_3 = torch.add(out_rgbt_1, out_rgbt_3)
 
-        # Add output of first conv block
-        out_rgbt_3 = torch.add(out_rgbt_3, out_ir_1)
+        if 0:
+            # Add output of first conv block
+            out_rgbt_3 = torch.add(out_rgbt_3, out_ir_1)
 
         # Final conv
         out = self.conv_block3(out_rgbt_3)

@@ -174,7 +174,7 @@ def build_model() -> nn.Module:
         SRGAN model
 
     """
-    discriminator = Discriminator(image_size=config.image_size).to(config.device)
+    discriminator = Discriminator(image_size=config.d_image_size).to(config.device)
     generator = Generator().to(config.device)
 
     return discriminator, generator
