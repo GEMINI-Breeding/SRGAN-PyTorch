@@ -78,6 +78,6 @@ class AffineSTN(nn.Module):
             
         return warped_images, img_b, self.theta
 
-    def _calculate_regularization_term(self, theta):
-        x = torch.mean(torch.abs(theta))
+    def calculate_regularization_term(self):
+        x = torch.max(torch.abs(self.theta)) / self.h
         return x

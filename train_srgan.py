@@ -104,9 +104,9 @@ def main():
         d_scheduler.step()
         g_scheduler.step()
 
-    # Save the generator weight under the last Epoch in this stage
-    torch.save(discriminator.state_dict(), os.path.join(results_dir, "d-last.pth"))
-    torch.save(generator.state_dict(), os.path.join(results_dir, "g-last.pth"))
+        # Save the generator weight under the last Epoch in this stage
+        torch.save(discriminator.state_dict(), os.path.join(results_dir, "d-last.pth"))
+        torch.save(generator.state_dict(), os.path.join(results_dir, "g-last.pth"))
     print("End train SRGAN model.")
 
 

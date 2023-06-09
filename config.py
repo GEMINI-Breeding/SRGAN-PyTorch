@@ -78,15 +78,16 @@ class Config():
 
             self.image_size = 256
             self.d_image_size = 96
+            self.stn_image_size = self.d_image_size
             self.batch_size = 4
             self.num_workers = 1 # more than 4 is slower
 
             # Incremental training and migration training
-            self.resume = True
+            self.resume = False
             self.strict = False
-            self.start_epoch = 180
-            self.resume_d_weight = f"results/{exp_name}/d-best.pth"
-            self.resume_g_weight = f"results/{exp_name}/g-best.pth"
+            self.start_epoch = 0
+            self.resume_d_weight = f"results/{exp_name}/d-last.pth"
+            self.resume_g_weight = f"results/{exp_name}/g-last.pth"
 
             # Total num epochs
             #epochs = sys.maxsize # Very large number
@@ -98,10 +99,12 @@ class Config():
             self.content_weight = 1.0
             self.adversarial_weight = 0.004
 
-            self.adversarial_weight_step_size = 1000
+            self.adversarial_weight_step_size = 500
             self.adversarial_weight_step_rate = 2
 
-            self.similaity_weight = 0.1
+            self.similaity_weight = 0.0
+
+            self.lambda_smooth = 0.1
 
             # Adam optimizer parameter for Discriminator
             self.d_model_lr = 1e-4 # Defalut 1e-4
@@ -110,8 +113,8 @@ class Config():
             self.g_model_betas = (0.9, 0.999)
 
             # MultiStepLR scheduler parameter for SRGAN
-            self.d_scheduler_step_size = 1000
-            self.g_scheduler_step_size = 1000
+            self.d_scheduler_step_size = 500
+            self.g_scheduler_step_size = 500
 
             self.d_scheduler_gamma = 0.1
             self.g_scheduler_gamma = 0.1

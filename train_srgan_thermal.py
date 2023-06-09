@@ -37,7 +37,7 @@ from torchvision.transforms import functional as F
 autocast_on = False
 interrupted = False
 
-config = Config(mode="train_srgan", exp_name="2023-06-07-ThermalRGB_HRMSE_HRNCC_STN")
+config = Config(mode="train_srgan", exp_name="2023-06-09-ThermalRGB_HRMSE_STNReg_SeparateTrunk")
 
 def handler(signum, _):
     print(f'Application is terminated by {signal.Signals(signum).name}\n')
@@ -175,7 +175,7 @@ def build_model() -> nn.Module:
 
     """
     discriminator = Discriminator(image_size=config.d_image_size).to(config.device)
-    generator = Generator().to(config.device)
+    generator = Generator(stn_image_size=config.stn_image_size).to(config.device)
 
     return discriminator, generator
 
@@ -385,11 +385,16 @@ def train(discriminator,
         similaity_val, _ = similaity_criterion(hr.detach(), sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
         similaity_loss = config.similaity_weight * similaity_val # Loss function for Gradient Differnce
 
+        # ReLU under 0.1
+        relu = nn.ReLU()
+        stn_regularization = config.lambda_smooth * relu(generator.stn.calculate_regularization_term()-0.1)
+
         # Count discriminator total loss
         g_loss = (pixel_loss
                   + similaity_loss
                   + content_loss
-                  + adversarial_loss)
+                  + adversarial_loss
+                  + stn_regularization)
 
         # Gradient zoom
         scaler.scale(g_loss).backward()
@@ -492,7 +497,7 @@ def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, similaity_
         print(f"* SSIM: {ssimres.avg:4.2f}")
         print(f"* Similaity: {similaityres.avg:4.2f}")
         
-        if epoch % 10 == 0:
+        if epoch % 5 == 0:
             # Test Image
             sample_dataset = ImageDataset(dataroot=config.valid_image_dir, image_size=config.image_size, upscale_factor=4, mode="val",random_crop=False)
             # (low_img, rgb_img, high_img) = sample_dataset.getImage(5)
