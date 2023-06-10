@@ -110,10 +110,11 @@ class Discriminator(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self,stn_image_size=96) -> None:
+    def __init__(self,stn_image_size=96,debug=False) -> None:
         super(Generator, self).__init__()
 
         self.stn_image_size = stn_image_size
+        self.debug = debug
         # First conv layer.
         self.conv_block1_ir = nn.Sequential(
             nn.Conv2d(1, 64, (3, 3), (1, 1), (1, 1)), # for IR image (1, 64, 3)
@@ -221,7 +222,8 @@ class Generator(nn.Module):
 
     # Support torch.script function.
     def _forward_impl(self, x, y: Tensor) -> Tensor:
-
+        
+        debug = []
         # IR
         out_ir_1 = self.conv_block1_ir(x) # Use this feature to STN block
         out_ir_2 = self.trunk_ir(out_ir_1)  # Use separate trunk for IR
@@ -233,27 +235,24 @@ class Generator(nn.Module):
 
         # RGB
         out_rgb_1 = self.conv_block1_rgb(y)
-
-        # STN
-        # Resize features before STN. width=config.stn_image_size, height=config.stn_image_size                
-        out_rgb_1_stn = F.interpolate(out_rgb_1, size=(self.stn_image_size, self.stn_image_size), mode='bilinear', align_corners=False)
-        out_ir_1_stn = F.interpolate(out_ir_1, size=(self.stn_image_size, self.stn_image_size), mode='bilinear', align_corners=False)
-        # Spatial Transformer Network to calculate theta
-        _, _, _ = self.stn(out_rgb_1_stn,out_ir_1_stn)
-        self.dtheta = self.stn.dtheta * (out_rgb_1.shape[-1]) / out_rgb_1_stn.shape[-1]
-        theta = self.dtheta + self.stn.identity_theta.unsqueeze(0).repeat(out_rgb_1_stn.size(0), 1)
-        # Transform Features
-        resampling_grid = F.affine_grid(theta.view(-1, 2, 3), out_rgb_1.size())
-        out_rgb_1 = F.grid_sample(out_rgb_1, resampling_grid, mode='bilinear', padding_mode='border', align_corners=False)
-
-        # RGB Continued
         out_rgb_2 = self.trunk_rgb(out_rgb_1) # Use separate trunk for RGB
         out_rgb_3 = self.conv_block2_rgb(out_rgb_2)
         out_rgb_4 = torch.add(out_rgb_1, out_rgb_3)
+        debug.append(out_rgb_4)
 
-        
+        # STN
+        # Resize features before STN. width=config.stn_image_size, height=config.stn_image_size                
+        out_rgb_4_stn = F.interpolate(out_rgb_4, size=(self.stn_image_size, self.stn_image_size), mode='bilinear', align_corners=False)
+        out_ir_4_stn = F.interpolate(out_ir_4, size=(self.stn_image_size, self.stn_image_size), mode='bilinear', align_corners=False)
+        # Spatial Transformer Network to calculate theta
+        _, _, theta = self.stn(out_rgb_4_stn,out_ir_4_stn)
+        # Transform Features
+        resampling_grid = F.affine_grid(theta.view(-1, 2, 3), out_rgb_4.size())
+        out_rgb_4 = F.grid_sample(out_rgb_4, resampling_grid, mode='bilinear', padding_mode='zeros', align_corners=False)
+        debug.append(out_rgb_4)
+
         # Add RGB + Thermal
-        if 0:
+        if 1:
             # Concat channels
             out_rgbt_1 = torch.cat((out_ir_4, out_rgb_4), 1) 
             out_rgbt_1 = self.conv_1x1(out_rgbt_1)
@@ -261,6 +260,7 @@ class Generator(nn.Module):
             # Add channels. Concat channels chrry-pick features
             out_rgbt_1 = torch.add(out_ir_4, out_rgb_4)
 
+        debug.append(out_rgbt_1)
         out_rgbt_2 = self.trunk(out_rgbt_1)
         out_rgbt_3 = self.conv_block2(out_rgbt_2)
         out_rgbt_3 = torch.add(out_rgbt_1, out_rgbt_3)
@@ -272,8 +272,10 @@ class Generator(nn.Module):
 
         # Final conv
         out = self.conv_block3(out_rgbt_3)
-
-        return out
+        if self.debug:
+            return out, debug
+        else:
+            return out
 
     def _initialize_weights(self) -> None:
         for module in self.modules():

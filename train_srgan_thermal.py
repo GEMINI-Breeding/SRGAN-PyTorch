@@ -37,13 +37,13 @@ from torchvision.transforms import functional as F
 autocast_on = False
 interrupted = False
 
-config = Config(mode="train_srgan", exp_name="2023-06-09-ThermalRGB_HRMSE_STNReg_SeparateTrunk")
+config = Config(mode="train_srgan", exp_name="2023-06-10-ThermalRGB_HRMSE_STNReg_SeparateTrunkFixSTNError")
 
 def handler(signum, _):
     print(f'Application is terminated by {signal.Signals(signum).name}\n')
     global interrupted
     interrupted = True
-
+    exit(0)
 def main():
 
     signal.signal(signal.SIGINT, handler)
@@ -131,12 +131,13 @@ def main():
         writer.add_scalar("Train/g_lr", get_lr(g_optimizer), epoch)
         writer.add_scalar("Train/d_lr", get_lr(d_optimizer), epoch)
 
+        # Save the generator weight under the last Epoch in this stage
+        torch.save(discriminator.state_dict(), os.path.join(results_dir, "d-last.pth"))
+        torch.save(generator.state_dict(), os.path.join(results_dir, "g-last.pth"))
+
         if interrupted:
             break
 
-    # Save the generator weight under the last Epoch in this stage
-    torch.save(discriminator.state_dict(), os.path.join(results_dir, "d-last.pth"))
-    torch.save(generator.state_dict(), os.path.join(results_dir, "g-last.pth"))
     print("End train SRGAN model.")
 
 
@@ -381,13 +382,13 @@ def train(discriminator,
 
         rgb_gray = F.rgb_to_grayscale(rgb)
         # similaity_val, _ = similaity_criterion(rgb_gray, hr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
-        # similaity_val, _ = similaity_criterion(rgb_gray, sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
+        #similaity_val, _ = similaity_criterion(rgb_gray, sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
         similaity_val, _ = similaity_criterion(hr.detach(), sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
         similaity_loss = config.similaity_weight * similaity_val # Loss function for Gradient Differnce
 
         # ReLU under 0.1
         relu = nn.ReLU()
-        stn_regularization = config.lambda_smooth * relu(generator.stn.calculate_regularization_term()-0.1)
+        stn_regularization = config.lambda_smooth * relu(generator.stn.calculate_regularization_term() - 1.0) # Not to be too far from 1.0
 
         # Count discriminator total loss
         g_loss = (pixel_loss
@@ -431,6 +432,7 @@ def train(discriminator,
         writer.add_scalar("Train/Adversarial_Loss", adversarial_loss.item(), iters)
         writer.add_scalar("Train/D(HR)_Probability", d_hr_probability.item(), iters)
         writer.add_scalar("Train/D(SR)_Probability", d_sr_probability.item(), iters)
+        writer.add_scalar("Train/G_STN_Reg", generator.stn.calculate_regularization_term(), iters)
         if index % config.print_frequency == 0 and index != 0:
             progress.display(index)
 
@@ -491,6 +493,7 @@ def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, similaity_
         writer.add_scalar("Valid/PSNR", psnres.avg, epoch + 1)
         writer.add_scalar("Valid/SSIM", ssimres.avg, epoch + 1)
         writer.add_scalar("Valid/Similaity", similaityres.avg, epoch + 1)
+        writer.add_scalar("Valid/G_STN_Reg", model.stn.calculate_regularization_term(), epoch + 1)
 
         # Print evaluation indicators.
         print(f"* PSNR: {psnres.avg:4.2f}")

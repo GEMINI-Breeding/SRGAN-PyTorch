@@ -41,6 +41,7 @@ def handler(signum, _):
     print(f'Application is terminated by {signal.Signals(signum).name}\n')
     global interrupted
     interrupted = True
+    exit(0)
 
 def main():
 
@@ -128,12 +129,13 @@ def main():
         writer.add_scalar("Train/g_lr", get_lr(g_optimizer), epoch)
         writer.add_scalar("Train/d_lr", get_lr(d_optimizer), epoch)
 
+        # Save the generator weight under the last Epoch in this stage
+        torch.save(discriminator.state_dict(), os.path.join(results_dir, "d-last.pth"))
+        torch.save(generator.state_dict(), os.path.join(results_dir, "g-last.pth"))
+        
         if interrupted:
             break
 
-    # Save the generator weight under the last Epoch in this stage
-    torch.save(discriminator.state_dict(), os.path.join(results_dir, "d-last.pth"))
-    torch.save(generator.state_dict(), os.path.join(results_dir, "g-last.pth"))
     print("End train SRGAN model.")
 
 
@@ -407,6 +409,9 @@ def train(discriminator:Discriminator,
         if index % config.print_frequency == 0 and index != 0:
             progress.display(index)
 
+        if interrupted:
+            break
+
 
 def validate(model:Generator, valid_dataloader, psnr_criterion, ssim_criterion, similaity_criterion, epoch, writer) -> float:
     batch_time = AverageMeter("Time", ":6.3f")
@@ -457,6 +462,9 @@ def validate(model:Generator, valid_dataloader, psnr_criterion, ssim_criterion, 
 
             if index % config.print_frequency == 0:
                 progress.display(index)
+
+            if interrupted:
+                break
         # Update last one
         writer.add_image("Valid/lr",lr.squeeze(0),epoch + 1 )
         writer.add_image("Valid/hr",hr.squeeze(0),epoch + 1 )

@@ -78,8 +78,8 @@ class Config():
 
             self.image_size = 256
             self.d_image_size = 96
-            self.stn_image_size = self.d_image_size
-            self.batch_size = 4
+            self.stn_image_size = self.d_image_size # It will resize the image
+            self.batch_size = 1
             self.num_workers = 1 # more than 4 is slower
 
             # Incremental training and migration training
@@ -99,12 +99,12 @@ class Config():
             self.content_weight = 1.0
             self.adversarial_weight = 0.004
 
-            self.adversarial_weight_step_size = 500
+            self.adversarial_weight_step_size = 400
             self.adversarial_weight_step_rate = 2
 
             self.similaity_weight = 0.0
 
-            self.lambda_smooth = 0.1
+            self.lambda_smooth = 0.0
 
             # Adam optimizer parameter for Discriminator
             self.d_model_lr = 1e-4 # Defalut 1e-4
@@ -113,8 +113,8 @@ class Config():
             self.g_model_betas = (0.9, 0.999)
 
             # MultiStepLR scheduler parameter for SRGAN
-            self.d_scheduler_step_size = 500
-            self.g_scheduler_step_size = 500
+            self.d_scheduler_step_size = 400
+            self.g_scheduler_step_size = 400
 
             self.d_scheduler_gamma = 0.1
             self.g_scheduler_gamma = 0.1

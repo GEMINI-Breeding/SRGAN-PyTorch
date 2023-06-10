@@ -57,8 +57,8 @@ class AffineSTN(nn.Module):
         x = torch.cat([img_a, img_b], -3) # Concat channel, [n c h w]
         x = self.convs(x)
         x = x.view(x.size(0), -1)
-        temp = self.local(x)
-        self.dtheta = torch.matmul(temp,self.xy2theta)
+        self.xy_move = self.local(x)
+        self.dtheta = torch.matmul(self.xy_move,self.xy2theta)
         self.theta = self.dtheta + \
             self.identity_theta.unsqueeze(0).repeat(img_a.size(0), 1)
 
@@ -79,5 +79,5 @@ class AffineSTN(nn.Module):
         return warped_images, img_b, self.theta
 
     def calculate_regularization_term(self):
-        x = torch.max(torch.abs(self.theta)) / self.h
+        x = torch.max(torch.abs(self.xy_move))
         return x
