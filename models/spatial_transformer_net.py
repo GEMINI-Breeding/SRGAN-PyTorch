@@ -8,16 +8,11 @@ from .layers import DownBlock, get_activation
 class AffineSTN(nn.Module):
     def __init__(self, nc_a, nc_b, height, width, init_func, device=None):
         super(AffineSTN, self).__init__()
-        if device:
-            self.device = device
-        else:
-            self.device = torch.device(
-                "cuda" if torch.cuda.is_available() else "cpu")
             
         self.identity_theta = torch.tensor(
-            [1, 0, 0, 0, 1, 0], dtype=torch.float).to(self.device)
+            [1, 0, 0, 0, 1, 0], dtype=torch.float)
         self.xy2theta = torch.tensor(
-            [[0, 0, 1, 0, 0, 0],[0, 0, 0, 0, 0, 1]],dtype=torch.float).to(self.device)
+            [[0, 0, 1, 0, 0, 0],[0, 0, 0, 0, 0, 1]],dtype=torch.float)
         
         self.h, self.w = height, width
         nconvs = 5

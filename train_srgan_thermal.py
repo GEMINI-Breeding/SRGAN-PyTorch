@@ -37,7 +37,7 @@ from torchvision.transforms import functional as F
 autocast_on = False
 interrupted = False
 
-config = Config(mode="train_srgan", exp_name="2023-06-10-ThermalRGB_HRMSE_STNReg_SeparateTrunkFixSTNError")
+config = Config(mode="train_srgan", exp_name="2023-06-10-ThermalRGB_HRMSE_STNReg_SeparateTrunkFixSTNErrorFeatureCorr")
 
 def handler(signum, _):
     print(f'Application is terminated by {signal.Signals(signum).name}\n')
@@ -388,7 +388,11 @@ def train(discriminator,
 
         # ReLU under 0.1
         relu = nn.ReLU()
-        stn_regularization = config.lambda_smooth * relu(generator.stn.calculate_regularization_term() - 1.0) # Not to be too far from 1.0
+        # Not to be too far from config.max_stn_reg
+        stn_reg = generator.stn.calculate_regularization_term()
+        
+        stn_regularization = config.lambda_smooth * (relu(stn_reg - config.max_stn_reg) + relu(config.min_stn_reg - stn_reg))
+        # stn_regularization += config.lambda_smooth * (1-torch.abs(generator.feature_correl)) # Maximize feature correlation
 
         # Count discriminator total loss
         g_loss = (pixel_loss

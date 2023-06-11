@@ -232,6 +232,7 @@ class Generator(nn.Module):
 
         out_ir_1 = self.upsampling(out_ir_1) # Pass to before last conv block
         out_ir_4 = self.upsampling(out_ir_4) # Pass to RGBT Trunk
+        debug.append(out_ir_4)
 
         # RGB
         out_rgb_1 = self.conv_block1_rgb(y)
@@ -248,16 +249,22 @@ class Generator(nn.Module):
         _, _, theta = self.stn(out_rgb_4_stn,out_ir_4_stn)
         # Transform Features
         resampling_grid = F.affine_grid(theta.view(-1, 2, 3), out_rgb_4.size())
-        out_rgb_4 = F.grid_sample(out_rgb_4, resampling_grid, mode='bilinear', padding_mode='zeros', align_corners=False)
+        out_rgb_4 = F.grid_sample(out_rgb_4, resampling_grid, mode='bilinear', padding_mode='zeros', align_corners=False) # 'zeros', 'border', or 'reflection'
         debug.append(out_rgb_4)
 
+        # Calculate feature correlation
+        # Flatten the features
+
+        self.feature_correl = self.calc_feature_corr(out_rgb_4, out_ir_4)
+
+
         # Add RGB + Thermal
-        if 1:
-            # Concat channels
+        if 0:
+            # Concat channels. Concat channels chrry-pick features
             out_rgbt_1 = torch.cat((out_ir_4, out_rgb_4), 1) 
             out_rgbt_1 = self.conv_1x1(out_rgbt_1)
         else:
-            # Add channels. Concat channels chrry-pick features
+            # Add channels. 
             out_rgbt_1 = torch.add(out_ir_4, out_rgb_4)
 
         debug.append(out_rgbt_1)
@@ -285,6 +292,21 @@ class Generator(nn.Module):
                     nn.init.constant_(module.bias, 0)
             elif isinstance(module, nn.BatchNorm2d):
                 nn.init.constant_(module.weight, 1)
+
+    def calc_feature_corr(self, x, y: Tensor) -> Tensor:
+        # Flatten features
+        x_intensity = torch.mean(torch.abs(x),dim=1)
+        y_intensity = torch.mean(torch.abs(y),dim=1)
+
+        x_flat = x.view(x_intensity.size(0), -1)
+        y_flat = y.view(y_intensity.size(0), -1)
+
+        # concat two features
+        xy = torch.cat((x_flat, y_flat), 0)
+
+        # Calc corr
+        corr = torch.corrcoef(xy)[0][1]
+        return corr
                 
 class ContentLoss(nn.Module):
     """Constructs a content loss function based on the VGG19 network.
