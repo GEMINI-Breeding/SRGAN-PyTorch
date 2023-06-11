@@ -23,6 +23,7 @@ from torch import Tensor
 
 from models.networks import ResnetGenerator
 from models.spatial_transformer_net import AffineSTN
+from models.dcn import DeformableConv2d
 
 __all__ = [
     "ResidualConvBlock",
@@ -136,6 +137,14 @@ class Generator(nn.Module):
             trunk.append(ResidualConvBlock(64))
         self.trunk = nn.Sequential(*trunk)
 
+        if 1:
+            trunk_deform = []
+            trunk_deform.append(DeformableConv2d(in_channels=128, out_channels=64, kernel_size=3, stride=1, padding=1))
+            # for _ in range(1):
+            #     trunk_deform.append(DeformableConv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1))
+            self.trunk_deform = nn.Sequential(*trunk_deform)
+
+
         trunk_ir = []
         for _ in range(16):
             trunk_ir.append(ResidualConvBlock(64))
@@ -242,20 +251,21 @@ class Generator(nn.Module):
         debug.append(out_rgb_4)
 
         # STN
-        # Resize features before STN. width=config.stn_image_size, height=config.stn_image_size                
-        out_rgb_4_stn = F.interpolate(out_rgb_4, size=(self.stn_image_size, self.stn_image_size), mode='bilinear', align_corners=False)
-        out_ir_4_stn = F.interpolate(out_ir_4, size=(self.stn_image_size, self.stn_image_size), mode='bilinear', align_corners=False)
-        # Spatial Transformer Network to calculate theta
-        _, _, theta = self.stn(out_rgb_4_stn,out_ir_4_stn)
-        # Transform Features
-        resampling_grid = F.affine_grid(theta.view(-1, 2, 3), out_rgb_4.size())
-        out_rgb_4 = F.grid_sample(out_rgb_4, resampling_grid, mode='bilinear', padding_mode='zeros', align_corners=False) # 'zeros', 'border', or 'reflection'
-        debug.append(out_rgb_4)
+        if 0:
+            # Resize features before STN. width=config.stn_image_size, height=config.stn_image_size                
+            out_rgb_4_stn = F.interpolate(out_rgb_4, size=(self.stn_image_size, self.stn_image_size), mode='bilinear', align_corners=False)
+            out_ir_4_stn = F.interpolate(out_ir_4, size=(self.stn_image_size, self.stn_image_size), mode='bilinear', align_corners=False)
+            # Spatial Transformer Network to calculate theta
+            _, _, theta = self.stn(out_rgb_4_stn,out_ir_4_stn)
+            # Transform Features
+            resampling_grid = F.affine_grid(theta.view(-1, 2, 3), out_rgb_4.size())
+            out_rgb_4 = F.grid_sample(out_rgb_4, resampling_grid, mode='bilinear', padding_mode='zeros', align_corners=False) # 'zeros', 'border', or 'reflection'
+            debug.append(out_rgb_4)
 
         # Calculate feature correlation
         # Flatten the features
 
-        self.feature_correl = self.calc_feature_corr(out_rgb_4, out_ir_4)
+            self.feature_correl = self.calc_feature_corr(out_rgb_4, out_ir_4)
 
 
         # Add RGB + Thermal
@@ -263,9 +273,13 @@ class Generator(nn.Module):
             # Concat channels. Concat channels chrry-pick features
             out_rgbt_1 = torch.cat((out_ir_4, out_rgb_4), 1) 
             out_rgbt_1 = self.conv_1x1(out_rgbt_1)
-        else:
+        elif 0:
             # Add channels. 
             out_rgbt_1 = torch.add(out_ir_4, out_rgb_4)
+        else:
+            # Deformable conv
+            out_rgbt_1 = torch.cat((out_ir_4, out_rgb_4), 1) 
+            out_rgbt_1 = self.trunk_deform(out_rgbt_1)
 
         debug.append(out_rgbt_1)
         out_rgbt_2 = self.trunk(out_rgbt_1)

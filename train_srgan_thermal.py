@@ -37,7 +37,7 @@ from torchvision.transforms import functional as F
 autocast_on = False
 interrupted = False
 
-config = Config(mode="train_srgan", exp_name="2023-06-10-ThermalRGB_HRMSE_STNReg_SeparateTrunkFixSTNErrorFeatureCorr")
+config = Config(mode="train_srgan", exp_name="2023-06-10-DeformableConv")
 
 def handler(signum, _):
     print(f'Application is terminated by {signal.Signals(signum).name}\n')
@@ -389,9 +389,9 @@ def train(discriminator,
         # ReLU under 0.1
         relu = nn.ReLU()
         # Not to be too far from config.max_stn_reg
-        stn_reg = generator.stn.calculate_regularization_term()
+        #stn_reg = generator.stn.calculate_regularization_term()
         
-        stn_regularization = config.lambda_smooth * (relu(stn_reg - config.max_stn_reg) + relu(config.min_stn_reg - stn_reg))
+        # stn_regularization = config.lambda_smooth * (relu(stn_reg - config.max_stn_reg) + relu(config.min_stn_reg - stn_reg))
         # stn_regularization += config.lambda_smooth * (1-torch.abs(generator.feature_correl)) # Maximize feature correlation
 
         # Count discriminator total loss
@@ -399,7 +399,7 @@ def train(discriminator,
                   + similaity_loss
                   + content_loss
                   + adversarial_loss
-                  + stn_regularization)
+                  )
 
         # Gradient zoom
         scaler.scale(g_loss).backward()
@@ -436,7 +436,7 @@ def train(discriminator,
         writer.add_scalar("Train/Adversarial_Loss", adversarial_loss.item(), iters)
         writer.add_scalar("Train/D(HR)_Probability", d_hr_probability.item(), iters)
         writer.add_scalar("Train/D(SR)_Probability", d_sr_probability.item(), iters)
-        writer.add_scalar("Train/G_STN_Reg", generator.stn.calculate_regularization_term(), iters)
+        #writer.add_scalar("Train/G_STN_Reg", generator.stn.calculate_regularization_term(), iters)
         if index % config.print_frequency == 0 and index != 0:
             progress.display(index)
 
@@ -497,7 +497,7 @@ def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, similaity_
         writer.add_scalar("Valid/PSNR", psnres.avg, epoch + 1)
         writer.add_scalar("Valid/SSIM", ssimres.avg, epoch + 1)
         writer.add_scalar("Valid/Similaity", similaityres.avg, epoch + 1)
-        writer.add_scalar("Valid/G_STN_Reg", model.stn.calculate_regularization_term(), epoch + 1)
+        #writer.add_scalar("Valid/G_STN_Reg", model.stn.calculate_regularization_term(), epoch + 1)
 
         # Print evaluation indicators.
         print(f"* PSNR: {psnres.avg:4.2f}")

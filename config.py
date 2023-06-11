@@ -104,7 +104,7 @@ class Config():
 
             self.similaity_weight = 0.0
 
-            self.max_stn_reg =  0.2
+            self.max_stn_reg =  0.4
             self.min_stn_reg =  0.02 # not perfect dataset.. there will be 1% of error
             self.lambda_smooth = 0.1
 
