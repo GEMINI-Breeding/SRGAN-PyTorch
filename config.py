@@ -83,9 +83,9 @@ class Config():
             self.num_workers = 1 # more than 4 is slower
 
             # Incremental training and migration training
-            self.resume = False
+            self.resume = True
             self.strict = False
-            self.start_epoch = 0
+            self.start_epoch = 100
             self.resume_d_weight = f"results/{exp_name}/d-last.pth"
             self.resume_g_weight = f"results/{exp_name}/g-last.pth"
 

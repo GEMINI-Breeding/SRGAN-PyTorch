@@ -39,6 +39,7 @@ interrupted = False
 
 config = Config(mode="train_srgan", exp_name="2023-06-11-CycleGANSR2")
 
+
 def handler(signum, _):
     print(f'Application is terminated by {signal.Signals(signum).name}\n')
     global interrupted
@@ -345,8 +346,8 @@ def train(discriminator,
         scaler.update()
 
         # Count discriminator total loss
-        #d_loss = d_loss_hr + (d_loss_sr + d_loss_rgb2ir) * 0.5
-        d_loss = d_loss_hr + d_loss_sr 
+        d_loss = d_loss_hr + (d_loss_sr + d_loss_rgb2ir) * 0.5
+        #d_loss = d_loss_hr + d_loss_sr 
         # End training discriminator
 
         # Start training generator
@@ -379,6 +380,8 @@ def train(discriminator,
             content_loss = config.content_weight * content_criterion(sr, hr.detach())
             adversarial_loss = adversarial_weight * adversarial_criterion(output, real_label)
 
+        rgb2ir_output = discriminator(generator.out_rgb2ir)
+        adversarial_loss2 = adversarial_weight * adversarial_criterion(rgb2ir_output, real_label)
         
         rgb_gray = F.rgb_to_grayscale(rgb)
         # similaity_val, _ = similaity_criterion(rgb_gray, hr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
@@ -396,16 +399,16 @@ def train(discriminator,
         # ReLU under 0.1
         relu = nn.ReLU()
         # Not to be too far from config.max_stn_reg
-        stn_reg = generator.stn.calculate_regularization_term()
-        stn_regularization = config.lambda_smooth * (relu(stn_reg - config.max_stn_reg) + relu(config.min_stn_reg - stn_reg))
+        # stn_reg = generator.stn.calculate_regularization_term()
+        # stn_regularization = config.lambda_smooth * (relu(stn_reg - config.max_stn_reg) + relu(config.min_stn_reg - stn_reg))
 
         # Count discriminator total loss
         g_loss = (pixel_loss
                   + similaity_loss
                   + content_loss
-                  + adversarial_loss
+                  + adversarial_loss + adversarial_loss2
                   + identity_loss
-                  + stn_loss + stn_regularization)
+                  + stn_loss)
 
         # Gradient zoom
         scaler.scale(g_loss).backward()

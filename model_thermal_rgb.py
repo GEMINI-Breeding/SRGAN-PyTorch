@@ -31,6 +31,40 @@ __all__ = [
     "ContentLoss"
 ]
 
+@torch.jit.script    
+def matchTemplateTorchCore(img_tensor, template_tensor):
+    result1 = torch.nn.functional.conv2d(img_tensor, template_tensor, bias=None, stride=1, padding=0)
+    result2 = torch.sqrt(torch.sum(template_tensor**2) * torch.nn.functional.conv2d(img_tensor**2, torch.ones_like(template_tensor), bias=None, stride=1, padding=0))
+
+    return (result1/result2).squeeze(0).squeeze(0)
+    #return (result1).squeeze(0).squeeze(0)
+   
+def matchTemplateThetaBatch(background, template):
+    batch_size = background.shape[0]
+    theta = torch.zeros(batch_size, 6).to(background.device)
+
+    for i in range(batch_size):
+        template_i = template[i].unsqueeze(0)
+        # Stretch template from 0 to 1
+        template_i = (template_i - torch.min(template_i)) / (torch.max(template_i) - torch.min(template_i))
+        
+        background_i = F.interpolate(background[i].unsqueeze(0), size=(template_i.shape[-2], template_i.shape[-1]), mode='bilinear', align_corners=False)
+        # Add padding to low img
+        x_offset = background.shape[-2] // 4
+        y_offset = background.shape[-1] // 4
+        background_i = F.pad(background_i, (x_offset, x_offset, y_offset, y_offset), mode='replicate')
+        res = matchTemplateTorchCore(background_i, template_i)
+        result_max = torch.max(res)
+        result_max_loc = torch.argmax(res)
+        result_max_loc_x = result_max_loc % res.shape[0] 
+        result_max_loc_y = result_max_loc // res.shape[1] 
+        # print(result_max_loc_x, result_max_loc_y)
+
+        # Make theta matrix from max location
+        theta[i] = torch.tensor([1., 0., -2*(result_max_loc_x-x_offset)/ template.shape[-2], 0., 1., -2*(result_max_loc_y-y_offset) / template_i.shape[-1]])
+        theta[i] = theta[i].unsqueeze(0).repeat(background_i.shape[0],1,1)
+
+    return theta
 
 class ResidualConvBlock(nn.Module):
     """Implements residual conv function.
@@ -267,10 +301,14 @@ class Generator(nn.Module):
             
             x_stn = F.interpolate(x, size=(self.stn_image_size, self.stn_image_size), mode='bilinear', align_corners=False)
             out_rgb2ir_stn = F.interpolate(out_rgb2ir, size=(self.stn_image_size, self.stn_image_size), mode='bilinear', align_corners=False)
-            # Spatial Transformer Network to calculate theta
-            _, _, theta = self.stn(out_rgb2ir_stn,x_stn)
+            if 0:
+                # Spatial Transformer Network to calculate theta
+                _, _, theta = self.stn(out_rgb2ir_stn,x_stn)    
+            else:
+                # Test template matching
+                theta = matchTemplateThetaBatch(x_stn, out_rgb2ir_stn)
             resampling_grid = F.affine_grid(theta.view(-1, 2, 3), out_rgb2ir.size())
-            out_rgb2ir_aligned = F.grid_sample(out_rgb2ir, resampling_grid, mode='bilinear', padding_mode='zeros', align_corners=False) # 'zeros', 'border', or 'reflection'
+            out_rgb2ir_aligned = F.grid_sample(out_rgb2ir, resampling_grid, mode='bilinear', padding_mode='border', align_corners=False) # 'zeros', 'border', or 'reflection'
             self.out_rgb2ir_aligned = out_rgb2ir_aligned # For loss calculation
             debug.append(self.out_rgb2ir_aligned)
 
@@ -297,8 +335,8 @@ class Generator(nn.Module):
             out_rgb_4 = F.grid_sample(out_rgb_4, resampling_grid, mode='bilinear', padding_mode='zeros', align_corners=False) # 'zeros', 'border', or 'reflection'
             debug.append(out_rgb_4)
 
-        # Calculate feature correlation
-        # Flatten the features
+            # Calculate feature correlation
+            # Flatten the features
 
             self.feature_correl = self.calc_feature_corr(out_rgb_4, out_ir_4)
 
