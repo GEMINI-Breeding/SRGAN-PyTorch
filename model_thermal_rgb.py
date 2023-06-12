@@ -122,13 +122,19 @@ class Generator(nn.Module):
             nn.PReLU(),
         )
 
+        self.conv_block1_cycleGAN = nn.Sequential(
+            nn.Conv2d(2, 64, (3, 3), (1, 1), (1, 1)), # for IR image (1, 64, 3)
+            nn.PReLU(),
+        )
+
         self.conv_block1_rgb = nn.Sequential(
             nn.Conv2d(3, 64, (3, 3), (1, 1), (1, 1)), # For RGB Image (3, 64, 3)
             nn.PReLU(),
         )
 
-        # self.rgb_feature_G = ResnetGenerator(3, 64, 64, norm_layer=nn.BatchNorm2d, use_dropout=False)
-        self.stn = AffineSTN(nc_a=64, nc_b=64, height=self.stn_image_size, width=self.stn_image_size, init_func='normal')
+        self.rgb2ir = ResnetGenerator(3, 1, 64, norm_layer=nn.BatchNorm2d, use_dropout=False)
+        self.ir2rgb = ResnetGenerator(1, 3, 64, norm_layer=nn.BatchNorm2d, use_dropout=False)
+        self.stn = AffineSTN(nc_a=1, nc_b=1, height=self.stn_image_size, width=self.stn_image_size, init_func='normal')
         
 
         # Features trunk blocks.
@@ -233,23 +239,52 @@ class Generator(nn.Module):
     def _forward_impl(self, x, y: Tensor) -> Tensor:
         
         debug = []
-        # IR
-        out_ir_1 = self.conv_block1_ir(x) # Use this feature to STN block
-        out_ir_2 = self.trunk_ir(out_ir_1)  # Use separate trunk for IR
-        out_ir_3 = self.conv_block2_ir(out_ir_2)
-        out_ir_4 = torch.add(out_ir_1, out_ir_3)
 
-        out_ir_1 = self.upsampling(out_ir_1) # Pass to before last conv block
-        out_ir_4 = self.upsampling(out_ir_4) # Pass to RGBT Trunk
-        debug.append(out_ir_4)
+        if 0:
+            # IR
+            out_ir_1 = self.conv_block1_ir(x) # Use this feature to STN block
+            out_ir_2 = self.trunk_ir(out_ir_1)  # Use separate trunk for IR
+            out_ir_3 = self.conv_block2_ir(out_ir_2)
+            out_ir_4 = torch.add(out_ir_1, out_ir_3)
 
-        # RGB
-        out_rgb_1 = self.conv_block1_rgb(y)
-        out_rgb_2 = self.trunk_rgb(out_rgb_1) # Use separate trunk for RGB
-        out_rgb_3 = self.conv_block2_rgb(out_rgb_2)
-        out_rgb_4 = torch.add(out_rgb_1, out_rgb_3)
-        debug.append(out_rgb_4)
+            out_ir_1 = self.upsampling(out_ir_1) # Pass to before last conv block
+            out_ir_4 = self.upsampling(out_ir_4) # Pass to RGBT Trunk
+            debug.append(out_ir_4)
 
+            # RGB
+            out_rgb_1 = self.conv_block1_rgb(y)
+            out_rgb_2 = self.trunk_rgb(out_rgb_1) # Use separate trunk for RGB
+            out_rgb_3 = self.conv_block2_rgb(out_rgb_2)
+            out_rgb_4 = torch.add(out_rgb_1, out_rgb_3)
+            debug.append(out_rgb_4)
+        else:
+            # RGB 2 IR
+            out_rgb2ir = self.rgb2ir(y)
+            debug.append(out_rgb2ir)
+            # For loss calculation
+            self.out_rgb2ir = out_rgb2ir
+            self.out_rgb2ir2rgb = self.ir2rgb(out_rgb2ir) 
+            
+            x_stn = F.interpolate(x, size=(self.stn_image_size, self.stn_image_size), mode='bilinear', align_corners=False)
+            out_rgb2ir_stn = F.interpolate(out_rgb2ir, size=(self.stn_image_size, self.stn_image_size), mode='bilinear', align_corners=False)
+            # Spatial Transformer Network to calculate theta
+            _, _, theta = self.stn(out_rgb2ir_stn,x_stn)
+            resampling_grid = F.affine_grid(theta.view(-1, 2, 3), out_rgb2ir.size())
+            out_rgb2ir_aligned = F.grid_sample(out_rgb2ir, resampling_grid, mode='bilinear', padding_mode='zeros', align_corners=False) # 'zeros', 'border', or 'reflection'
+            self.out_rgb2ir_aligned = out_rgb2ir_aligned # For loss calculation
+            debug.append(self.out_rgb2ir_aligned)
+
+            # RGB
+            out_ir_1 = self.upsampling_img(x) # Pass to before last conv block
+            rgb_ir = torch.cat((out_ir_1, out_rgb2ir_aligned), 1) 
+            out_ir_1 = self.conv_block1_cycleGAN(rgb_ir)
+            out_ir_2 = self.trunk_ir(out_ir_1)  # Use separate trunk for IR
+            out_ir_3 = self.conv_block2_ir(out_ir_2)
+            out_ir_4 = torch.add(out_ir_1, out_ir_3)
+
+            # out_ir_1 = self.upsampling(out_ir_1) # Pass to before last conv block
+            # out_ir_4 = self.upsampling(out_ir_4) # Pass to RGBT Trunk
+            debug.append(out_ir_4)
         # STN
         if 0:
             # Resize features before STN. width=config.stn_image_size, height=config.stn_image_size                
@@ -276,10 +311,12 @@ class Generator(nn.Module):
         elif 0:
             # Add channels. 
             out_rgbt_1 = torch.add(out_ir_4, out_rgb_4)
-        else:
+        elif 0:
             # Deformable conv
             out_rgbt_1 = torch.cat((out_ir_4, out_rgb_4), 1) 
             out_rgbt_1 = self.trunk_deform(out_rgbt_1)
+        else:
+            out_rgbt_1 = out_ir_4
 
         debug.append(out_rgbt_1)
         out_rgbt_2 = self.trunk(out_rgbt_1)

@@ -106,7 +106,9 @@ class Config():
 
             self.max_stn_reg =  0.4
             self.min_stn_reg =  0.02 # not perfect dataset.. there will be 1% of error
-            self.lambda_smooth = 0.1
+            self.lambda_smooth = 1.0
+
+            self.lambda_identity = 0.1
 
             # Adam optimizer parameter for Discriminator
             self.d_model_lr = 1e-4 # Defalut 1e-4

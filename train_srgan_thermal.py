@@ -37,7 +37,7 @@ from torchvision.transforms import functional as F
 autocast_on = False
 interrupted = False
 
-config = Config(mode="train_srgan", exp_name="2023-06-10-DeformableConv")
+config = Config(mode="train_srgan", exp_name="2023-06-11-CycleGANSR2")
 
 def handler(signum, _):
     print(f'Application is terminated by {signal.Signals(signum).name}\n')
@@ -332,12 +332,21 @@ def train(discriminator,
             d_loss_sr = adversarial_criterion(sr_output, fake_label)
         # Gradient zoom
         scaler.scale(d_loss_sr).backward()
+        
+        if 1:
+            # Calculate the loss of the discriminator on the rgb2ir image
+            rgb2ir_output = discriminator(generator.out_rgb2ir.detach())
+            d_loss_rgb2ir = adversarial_criterion(rgb2ir_output, fake_label)
+            # Gradient zoom
+            scaler.scale(d_loss_rgb2ir).backward()
+        
         # Update discriminator parameters
         scaler.step(d_optimizer)
         scaler.update()
 
         # Count discriminator total loss
-        d_loss = d_loss_hr + d_loss_sr
+        #d_loss = d_loss_hr + (d_loss_sr + d_loss_rgb2ir) * 0.5
+        d_loss = d_loss_hr + d_loss_sr 
         # End training discriminator
 
         # Start training generator
@@ -361,45 +370,42 @@ def train(discriminator,
         if autocast_on:
             with amp.autocast():
                 output = discriminator(sr)
-                if 0:
-                    lr_resized = generator.upsampling_img(lr.detach())
-                    pixel_loss = config.pixel_weight * pixel_criterion(sr, lr_resized)
-                else:
-                    pixel_loss = config.pixel_weight * pixel_criterion(sr, hr)
+                pixel_loss = config.pixel_weight * pixel_criterion(sr, hr)
                 content_loss = config.content_weight * content_criterion(sr, hr.detach())
                 adversarial_loss = adversarial_weight * adversarial_criterion(output, real_label) 
         else:
             output = discriminator(sr)
-            if 0:
-                lr_resized = generator.upsampling_img(lr.detach())
-                pixel_loss = config.pixel_weight * pixel_criterion(sr, lr_resized)
-            else:
-                pixel_loss = config.pixel_weight * pixel_criterion(sr, hr)
+            pixel_loss = config.pixel_weight * pixel_criterion(sr, hr)
             content_loss = config.content_weight * content_criterion(sr, hr.detach())
             adversarial_loss = adversarial_weight * adversarial_criterion(output, real_label)
 
         
-
         rgb_gray = F.rgb_to_grayscale(rgb)
         # similaity_val, _ = similaity_criterion(rgb_gray, hr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
         #similaity_val, _ = similaity_criterion(rgb_gray, sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
         similaity_val, _ = similaity_criterion(hr.detach(), sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
+        #similaity_val, _ = similaity_criterion(hr.detach(), generator.out_rgb2ir_aligned)
         similaity_loss = config.similaity_weight * similaity_val # Loss function for Gradient Differnce
+
+        # identity loss for cycle gan
+        criterionIdt = torch.nn.L1Loss()
+        identity_loss = criterionIdt(rgb.detach(), generator.out_rgb2ir2rgb) * config.lambda_identity
+        upsample  = nn.UpsamplingBilinear2d(scale_factor=4)
+        stn_loss = criterionIdt(upsample(lr.detach()), generator.out_rgb2ir_aligned) * config.lambda_smooth
 
         # ReLU under 0.1
         relu = nn.ReLU()
         # Not to be too far from config.max_stn_reg
-        #stn_reg = generator.stn.calculate_regularization_term()
-        
-        # stn_regularization = config.lambda_smooth * (relu(stn_reg - config.max_stn_reg) + relu(config.min_stn_reg - stn_reg))
-        # stn_regularization += config.lambda_smooth * (1-torch.abs(generator.feature_correl)) # Maximize feature correlation
+        stn_reg = generator.stn.calculate_regularization_term()
+        stn_regularization = config.lambda_smooth * (relu(stn_reg - config.max_stn_reg) + relu(config.min_stn_reg - stn_reg))
 
         # Count discriminator total loss
         g_loss = (pixel_loss
                   + similaity_loss
                   + content_loss
                   + adversarial_loss
-                  )
+                  + identity_loss
+                  + stn_loss + stn_regularization)
 
         # Gradient zoom
         scaler.scale(g_loss).backward()
@@ -436,7 +442,9 @@ def train(discriminator,
         writer.add_scalar("Train/Adversarial_Loss", adversarial_loss.item(), iters)
         writer.add_scalar("Train/D(HR)_Probability", d_hr_probability.item(), iters)
         writer.add_scalar("Train/D(SR)_Probability", d_sr_probability.item(), iters)
-        #writer.add_scalar("Train/G_STN_Reg", generator.stn.calculate_regularization_term(), iters)
+        writer.add_scalar("Train/G_STN_Reg", stn_loss, iters)
+        writer.add_scalar("Train/identity_loss", identity_loss, iters)
+        
         if index % config.print_frequency == 0 and index != 0:
             progress.display(index)
 
@@ -523,6 +531,9 @@ def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, similaity_
                 writer.add_image("Valid/GroundTruth",high_ir,epoch + 1 )
             # Write everytime
             writer.add_image("Valid/Output",sr.squeeze(0),epoch + 1 )
+            writer.add_image("Valid/rgb2ir",model.out_rgb2ir.squeeze(0),epoch + 1 )
+            rgbir2rgb = model.out_rgb2ir2rgb[:, [2, 1, 0]] 
+            writer.add_image("Valid/rgb2ir2rgb",rgbir2rgb.squeeze(0),epoch + 1 )
 
     return psnres.avg
 
