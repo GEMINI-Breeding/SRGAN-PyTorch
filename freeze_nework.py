@@ -6,12 +6,12 @@ from torch.autograd import Variable
 from model_thermal_rgb import Discriminator, Generator
 #from model import Discriminator, Generator
 
-dummy_input_IR = Variable(torch.randn(1, 1, 160, 120))
-dummy_input_RGB = Variable(torch.randn(1, 3, 640, 480))
+dummy_input_IR = Variable(torch.randn(1, 1, 64, 64))
+dummy_input_RGB = Variable(torch.randn(1, 3, 256, 256))
 
 if 1:
-    weight_file = 'results/2023-06-07-ThermalRGB_HRMSE_HRNCC_TIGAN/g-best.pth'
-    model = Generator()
+    weight_file = 'results/2023-06-11-CycleGANSR2/g-best.pth'
+    model = Generator(export_onnx=True)
     model.load_state_dict(torch.load(weight_file))
     model.eval()
     # Change ext from pth to onnx
@@ -23,7 +23,7 @@ if 1:
     d_model.eval()
     dummy_input_IR = Variable(torch.randn(1, 1, 96, 96))
     torch.onnx.export(d_model, (dummy_input_IR),weight_file.replace('g-best.pth','d-best.onnx'),
-                        input_names=["ir"],output_names=["probability"], opset_version=10)
+                        input_names=["ir"],output_names=["probability"], opset_version=11)
 
 
 if 0:

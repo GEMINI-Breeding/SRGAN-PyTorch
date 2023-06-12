@@ -145,9 +145,9 @@ class Discriminator(nn.Module):
 
 
 class Generator(nn.Module):
-    def __init__(self,stn_image_size=96,debug=False) -> None:
+    def __init__(self,stn_image_size=96,debug=False,export_onnx=False) -> None:
         super(Generator, self).__init__()
-
+        self.export_onnx = export_onnx
         self.stn_image_size = stn_image_size
         self.debug = debug
         # First conv layer.
@@ -271,8 +271,8 @@ class Generator(nn.Module):
 
     # Support torch.script function.
     def _forward_impl(self, x, y: Tensor) -> Tensor:
-        
-        debug = []
+        if self.debug:
+            debug = []
 
         if 0:
             # IR
@@ -294,8 +294,9 @@ class Generator(nn.Module):
         else:
             # RGB 2 IR
             out_rgb2ir = self.rgb2ir(y)
-            debug.append(out_rgb2ir)
-            # For loss calculation
+            if self.debug:
+                debug.append(out_rgb2ir)
+            # For cycle GAN loss calculation
             self.out_rgb2ir = out_rgb2ir
             self.out_rgb2ir2rgb = self.ir2rgb(out_rgb2ir) 
             
@@ -307,10 +308,16 @@ class Generator(nn.Module):
             else:
                 # Test template matching
                 theta = matchTemplateThetaBatch(x_stn, out_rgb2ir_stn)
-            resampling_grid = F.affine_grid(theta.view(-1, 2, 3), out_rgb2ir.size())
-            out_rgb2ir_aligned = F.grid_sample(out_rgb2ir, resampling_grid, mode='bilinear', padding_mode='border', align_corners=False) # 'zeros', 'border', or 'reflection'
-            self.out_rgb2ir_aligned = out_rgb2ir_aligned # For loss calculation
-            debug.append(self.out_rgb2ir_aligned)
+
+            if self.export_onnx == False:
+                resampling_grid = F.affine_grid(theta.view(-1, 2, 3), out_rgb2ir.size())
+                out_rgb2ir_aligned = F.grid_sample(out_rgb2ir, resampling_grid, mode='bilinear', padding_mode='border', align_corners=False) # 'zeros', 'border', or 'reflection'
+                self.out_rgb2ir_aligned = out_rgb2ir_aligned # For loss calculation
+                if self.debug:
+                    debug.append(self.out_rgb2ir_aligned)
+            else:
+                #aten::affine_grid_generator Not yet supported. See https://pytorch.org/docs/stable/onnx_supported_aten_ops.html
+                out_rgb2ir_aligned = out_rgb2ir # For loss calculation
 
             # RGB
             out_ir_1 = self.upsampling_img(x) # Pass to before last conv block
@@ -322,7 +329,8 @@ class Generator(nn.Module):
 
             # out_ir_1 = self.upsampling(out_ir_1) # Pass to before last conv block
             # out_ir_4 = self.upsampling(out_ir_4) # Pass to RGBT Trunk
-            debug.append(out_ir_4)
+            if self.debug:
+                debug.append(out_ir_4)
         # STN
         if 0:
             # Resize features before STN. width=config.stn_image_size, height=config.stn_image_size                
@@ -333,7 +341,8 @@ class Generator(nn.Module):
             # Transform Features
             resampling_grid = F.affine_grid(theta.view(-1, 2, 3), out_rgb_4.size())
             out_rgb_4 = F.grid_sample(out_rgb_4, resampling_grid, mode='bilinear', padding_mode='zeros', align_corners=False) # 'zeros', 'border', or 'reflection'
-            debug.append(out_rgb_4)
+            if self.debug:
+                debug.append(out_rgb_4)
 
             # Calculate feature correlation
             # Flatten the features
@@ -356,7 +365,9 @@ class Generator(nn.Module):
         else:
             out_rgbt_1 = out_ir_4
 
-        debug.append(out_rgbt_1)
+        if self.debug:
+            debug.append(out_rgbt_1)
+
         out_rgbt_2 = self.trunk(out_rgbt_1)
         out_rgbt_3 = self.conv_block2(out_rgbt_2)
         out_rgbt_3 = torch.add(out_rgbt_1, out_rgbt_3)
