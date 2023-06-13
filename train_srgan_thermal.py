@@ -37,8 +37,7 @@ from torchvision.transforms import functional as F
 autocast_on = False
 interrupted = False
 
-config = Config(mode="train_srgan", exp_name="2023-06-11-CycleGANSR2")
-
+config = Config(mode="train_srgan", exp_name="2023-06-12-CycleGANSR_Final")
 
 def handler(signum, _):
     print(f'Application is terminated by {signal.Signals(signum).name}\n')
