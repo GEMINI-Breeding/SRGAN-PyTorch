@@ -38,6 +38,7 @@ autocast_on = False
 interrupted = False
 
 config = Config(mode="train_srgan", exp_name="2023-06-12-CycleGANSR_Final")
+#config = Config(mode="train_srgan", exp_name="test")
 
 def handler(signum, _):
     print(f'Application is terminated by {signal.Signals(signum).name}\n')
@@ -333,7 +334,8 @@ def train(discriminator,
         # Gradient zoom
         scaler.scale(d_loss_sr).backward()
         
-        if 1:
+        if 0:
+            # Train discriminator on rgb2ir image
             # Calculate the loss of the discriminator on the rgb2ir image
             rgb2ir_output = discriminator(generator.out_rgb2ir.detach())
             d_loss_rgb2ir = adversarial_criterion(rgb2ir_output, fake_label)
@@ -345,8 +347,8 @@ def train(discriminator,
         scaler.update()
 
         # Count discriminator total loss
-        d_loss = d_loss_hr + (d_loss_sr + d_loss_rgb2ir) * 0.5
-        #d_loss = d_loss_hr + d_loss_sr 
+        #d_loss = d_loss_hr + (d_loss_sr + d_loss_rgb2ir) * 0.5
+        d_loss = d_loss_hr + d_loss_sr
         # End training discriminator
 
         # Start training generator
@@ -393,10 +395,13 @@ def train(discriminator,
         criterionIdt = torch.nn.L1Loss()
         identity_loss = criterionIdt(rgb.detach(), generator.out_rgb2ir2rgb) * config.lambda_identity
         upsample  = nn.UpsamplingBilinear2d(scale_factor=4)
-        stn_loss = criterionIdt(upsample(lr.detach()), generator.out_rgb2ir_aligned) * config.lambda_smooth
+        #stn_loss = criterionIdt(upsample(lr.detach()), generator.out_rgb2ir_aligned) * config.lambda_smooth
+        stn_loss = criterionIdt(hr.detach(), generator.out_rgb2ir_aligned) * config.lambda_smooth
+        # stn_loss = criterionIdt(sr.detach(), generator.out_rgb2ir_aligned) * config.lambda_smooth # Or use SR result to MSE with aligned IR
+
 
         # ReLU under 0.1
-        relu = nn.ReLU()
+        # relu = nn.ReLU()
         # Not to be too far from config.max_stn_reg
         # stn_reg = generator.stn.calculate_regularization_term()
         # stn_regularization = config.lambda_smooth * (relu(stn_reg - config.max_stn_reg) + relu(config.min_stn_reg - stn_reg))
