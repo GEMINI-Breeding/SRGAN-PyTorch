@@ -37,7 +37,7 @@ from torchvision.transforms import functional as F
 autocast_on = False
 interrupted = False
 
-config = Config(mode="train_srgan", exp_name="2023-06-12-CycleGANSR_Final")
+config = Config(mode="train_srgan", exp_name="2023-06-14-CycleGANSR_Final_Training_T4_1_2")
 #config = Config(mode="train_srgan", exp_name="test")
 
 def handler(signum, _):
@@ -359,7 +359,7 @@ def train(discriminator,
         # Initialize the generator optimizer gradient
         g_optimizer.zero_grad()
 
-        if 1:
+        if 0:
             if 0:
                 adversarial_weight_mult = (config.adversarial_weight_step_rate)**(epoch // config.adversarial_weight_step_size)
                 adversarial_weight = min(config.adversarial_weight * adversarial_weight_mult,0.1)
@@ -381,6 +381,7 @@ def train(discriminator,
             content_loss = config.content_weight * content_criterion(sr, hr.detach())
             adversarial_loss = adversarial_weight * adversarial_criterion(output, real_label)
 
+        # Check out_rgb2ir is look like a hr image
         rgb2ir_output = discriminator(generator.out_rgb2ir)
         adversarial_loss2 = adversarial_weight * adversarial_criterion(rgb2ir_output, real_label)
         
@@ -391,12 +392,23 @@ def train(discriminator,
         #similaity_val, _ = similaity_criterion(hr.detach(), generator.out_rgb2ir_aligned)
         similaity_loss = config.similaity_weight * similaity_val # Loss function for Gradient Differnce
 
-        # identity loss for cycle gan
+        # cycle loss for cycle gan
         criterionIdt = torch.nn.L1Loss()
-        identity_loss = criterionIdt(rgb.detach(), generator.out_rgb2ir2rgb) * config.lambda_identity
+        identity_loss_rgb = criterionIdt(rgb.detach(), generator.out_rgb2ir2rgb) * config.lambda_identity
+        identity_loss_ir = criterionIdt(lr.detach(), generator.out_ir2rgb2ir) * config.lambda_identity 
+        identity_loss = identity_loss_rgb + identity_loss_ir
+
+        # Identity loss for cycle gan
         upsample  = nn.UpsamplingBilinear2d(scale_factor=4)
-        #stn_loss = criterionIdt(upsample(lr.detach()), generator.out_rgb2ir_aligned) * config.lambda_smooth
-        stn_loss = criterionIdt(hr.detach(), generator.out_rgb2ir_aligned) * config.lambda_smooth
+        if 0:
+            #stn_loss = criterionIdt(upsample(lr.detach()), generator.out_rgb2ir_aligned) * config.lambda_smooth
+            stn_loss_rgb = criterionIdt(hr.detach(), generator.out_rgb2ir_aligned) * config.lambda_smooth
+            stn_loss_ir = criterionIdt(generator.y_aligned.detach(), upsample(generator.out_ir2rgb)) * config.lambda_smooth
+        else:
+            #stn_loss_rgb = criterionIdt(hr.detach(), generator.out_rgb2ir) * config.lambda_smooth
+            stn_loss_rgb = criterionIdt(upsample(lr.detach()), generator.out_rgb2ir) * config.lambda_smooth
+            stn_loss_ir = criterionIdt(rgb.detach(), upsample(generator.out_ir2rgb)) * config.lambda_smooth
+        stn_loss = stn_loss_rgb + stn_loss_ir
         # stn_loss = criterionIdt(sr.detach(), generator.out_rgb2ir_aligned) * config.lambda_smooth # Or use SR result to MSE with aligned IR
 
 
@@ -407,12 +419,16 @@ def train(discriminator,
         # stn_regularization = config.lambda_smooth * (relu(stn_reg - config.max_stn_reg) + relu(config.min_stn_reg - stn_reg))
 
         # Count discriminator total loss
+        # Cycle GAN part 
+        g_loss_cycle =(adversarial_loss2
+                        + identity_loss     
+                        + stn_loss)
         g_loss = (pixel_loss
                   + similaity_loss
                   + content_loss
-                  + adversarial_loss + adversarial_loss2
-                  + identity_loss
-                  + stn_loss)
+                  + adversarial_loss
+                  + g_loss_cycle)
+
 
         # Gradient zoom
         scaler.scale(g_loss).backward()

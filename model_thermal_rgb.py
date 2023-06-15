@@ -59,9 +59,16 @@ def matchTemplateThetaBatch(background, template):
         result_max_loc_x = result_max_loc % res.shape[0] 
         result_max_loc_y = result_max_loc // res.shape[1] 
         # print(result_max_loc_x, result_max_loc_y)
+        # If too much transformation
 
+        x_t = -2*(result_max_loc_x-x_offset)/ template.shape[-2]
+        y_t = -2*(result_max_loc_y-y_offset) / template_i.shape[-1]
+        if abs(x_t) + abs(y_t) > 0.8:
+            # print("# Reset to 0")
+            x_t = y_t = 0 # Reset to 0
+    
         # Make theta matrix from max location
-        theta[i] = torch.tensor([1., 0., -2*(result_max_loc_x-x_offset)/ template.shape[-2], 0., 1., -2*(result_max_loc_y-y_offset) / template_i.shape[-1]])
+        theta[i] = torch.tensor([1., 0., x_t, 0., 1., y_t])
         theta[i] = theta[i].unsqueeze(0).repeat(background_i.shape[0],1,1)
 
     return theta
@@ -270,7 +277,16 @@ class Generator(nn.Module):
             debug.append(out_rgb2ir)
         # For cycle GAN loss calculation
         self.out_rgb2ir = out_rgb2ir
-        self.out_rgb2ir2rgb = self.ir2rgb(out_rgb2ir) 
+        self.out_rgb2ir2rgb = self.ir2rgb(out_rgb2ir)
+
+        # IR 2 RGB
+        out_ir2rgb = self.ir2rgb(x)
+        if self.debug:
+            debug.append(out_ir2rgb)
+        # For cycle GAN loss calculation
+        self.out_ir2rgb = out_ir2rgb
+        self.out_ir2rgb2ir = self.rgb2ir(out_ir2rgb)
+
         
         # Template matching
         x_stn = F.interpolate(x, size=(self.stn_image_size, self.stn_image_size), mode='bilinear', align_corners=False)
@@ -281,16 +297,17 @@ class Generator(nn.Module):
             resampling_grid = F.affine_grid(theta.view(-1, 2, 3), out_rgb2ir.size())
             out_rgb2ir_aligned = F.grid_sample(out_rgb2ir, resampling_grid, mode='bilinear', padding_mode='border', align_corners=False) # 'zeros', 'border', or 'reflection'
             self.out_rgb2ir_aligned = out_rgb2ir_aligned # For loss calculation
-
             resampling_grid = F.affine_grid(theta.view(-1, 2, 3), y.size())
             y_aligned = F.grid_sample(y, resampling_grid, mode='bilinear', padding_mode='border', align_corners=False) # 'zeros', 'border', or 'reflection'
-            
-            if self.debug:
-                self.y_aligned = y_aligned
-                debug.append(self.out_rgb2ir_aligned)
         else:
             #aten::affine_grid_generator Not yet supported. See https://pytorch.org/docs/stable/onnx_supported_aten_ops.html
             out_rgb2ir_aligned = out_rgb2ir # For loss calculation
+            y_aligned = y
+            
+        self.y_aligned = y_aligned
+        
+        if self.debug:
+            debug.append(self.out_rgb2ir_aligned)
 
         # RGB
         out_ir_1 = self.upsampling_img(x) # Pass to before last conv block

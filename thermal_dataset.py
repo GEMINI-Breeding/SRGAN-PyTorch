@@ -118,44 +118,51 @@ class ThermalImageDataset(Dataset):
             # Read a batch of image data
             # FLIR
             if self.low_filenames[batch_index].split('.')[-1] == "tiff":
-                self.lr_celcious_image = cv2.imread(self.low_filenames[batch_index],-1)  
+                lr_celcious_image = cv2.imread(self.low_filenames[batch_index],-1)  
                 # Convert to Celsius
-                self.lr_celcious_image = self.lr_celcious_image / 100 - 273.15
+                lr_celcious_image = lr_celcious_image / 100 - 273.15
             else:
-                self.lr_celcious_image = cv2.imread(self.low_filenames[batch_index])  # FLIR
+                lr_celcious_image = cv2.imread(self.low_filenames[batch_index])  # FLIR
 
             # VarioCAM
             if self.high_filenames[batch_index].split('.')[-1] == "tiff":
-                self.hr_celcious_image = cv2.imread(self.high_filenames[batch_index],-1)
+                hr_celcious_image = cv2.imread(self.high_filenames[batch_index],-1)
                 # Convert to Celsius
-                self.hr_celcious_image = self.hr_celcious_image / 100 - 273.15
+                hr_celcious_image = hr_celcious_image / 100 - 273.15
             else:
-                self.hr_celcious_image = cv2.imread(self.high_filenames[batch_index])
+                hr_celcious_image = cv2.imread(self.high_filenames[batch_index])
 
-            self.rgb_image = cv2.imread(self.rgb_filenames[batch_index])
+            rgb_image = cv2.imread(self.rgb_filenames[batch_index])
 
             # Shape check 1
-            h_frac = self.hr_celcious_image.shape[0] % self.upscale_factor
-            w_frac = self.hr_celcious_image.shape[1] % self.upscale_factor
+            h_frac = hr_celcious_image.shape[0] % self.upscale_factor
+            w_frac = hr_celcious_image.shape[1] % self.upscale_factor
             if h_frac == 0 and w_frac == 0:
                 pass
             else:
-                self.hr_celcious_image = cv2.resize(self.hr_celcious_image, dsize=(self.hr_celcious_image.shape[1]-w_frac,self.hr_celcious_image.shape[0]-h_frac))
-                self.rgb_image = cv2.resize(self.rgb_image, dsize=(self.rgb_image.shape[1]-w_frac,self.rgb_image.shape[0]-h_frac))
+                hr_celcious_image = cv2.resize(hr_celcious_image, dsize=(hr_celcious_image.shape[1]-w_frac,hr_celcious_image.shape[0]-h_frac))
+            
+            rgb_image = cv2.resize(rgb_image, dsize=(hr_celcious_image.shape[1],hr_celcious_image.shape[0]))
             
 
             # Shape check
-            if self.hr_celcious_image.shape[0] // self.upscale_factor == self.lr_celcious_image.shape[0] and self.hr_celcious_image.shape[1] // self.upscale_factor == self.lr_celcious_image.shape[1]:
+            if hr_celcious_image.shape[0] // self.upscale_factor == lr_celcious_image.shape[0] and hr_celcious_image.shape[1] // self.upscale_factor == lr_celcious_image.shape[1]:
                 pass
             else:
-                self.lr_celcious_image = cv2.resize(self.lr_celcious_image,dsize=(self.hr_celcious_image.shape[1]//self.upscale_factor,self.hr_celcious_image.shape[0]//self.upscale_factor))
-                
+               lr_celcious_image = cv2.resize(lr_celcious_image,dsize=(hr_celcious_image.shape[1]//self.upscale_factor,hr_celcious_image.shape[0]//self.upscale_factor))
+            
+            
         except Exception as inst:
             print(type(inst))    # the exception instance
             print(inst.args)     # arguments stored in .args
             print(inst)         
             print(f"Error reading {self.low_filenames[batch_index]}")
- 
+
+        # Update self variables if everything is OK
+        if lr_celcious_image is not None and hr_celcious_image is not None and rgb_image is not None:
+            self.lr_celcious_image = lr_celcious_image
+            self.rgb_image = rgb_image
+            self.hr_celcious_image = hr_celcious_image
         
         return self.lr_celcious_image, self.rgb_image, self.hr_celcious_image
 
@@ -232,15 +239,16 @@ class ThermalImageDataset(Dataset):
 
 if __name__ == "__main__":
 
-    upscale_factor = 1
-    sample_dataset = ThermalImageDataset(dataroot="/home/lion397/data/datasets/GEMINI/TLinear_All_2023_06_01/train",
-    #sample_dataset = ThermalImageDataset(dataroot="/home/lion397/data/datasets/GEMINI/Training_T4_1_2_3/train",
+    upscale_factor = 4
+    #sample_dataset = ThermalImageDataset(dataroot="/home/lion397/data/datasets/GEMINI/TLinear_All_2023_06_01/train",
+    sample_dataset = ThermalImageDataset(dataroot="/home/lion397/data/datasets/GEMINI/Training_T4_1_2_3/train",
     #sample_dataset = ThermalImageDataset(dataroot="/home/GEMINI/Dataset_processing/Davis_Legumes/2022-07-06/Thermal_Matched_old",
                                         image_size=96, upscale_factor=upscale_factor, mode="train")
 
     i = 0
     while True:
     #for i in range(len(sample_dataset.low_filenames)):
+        print(f"[{i}]{sample_dataset.low_filenames[i]}")
         i = np.clip(i,0,len(sample_dataset.low_filenames)-1)
         (low_img, rgb_img, high_img) = sample_dataset.getImage(i)
         # Convert celcius to uint8ddd
@@ -258,7 +266,6 @@ if __name__ == "__main__":
             disp_img = cv2.hconcat((rgb_img,disp_img))
             disp_img = cv2.resize(disp_img,dsize=(0,0),fx=1/4, fy=1/4)
             cv2.imshow("disp_img",disp_img)
-            print(f"{sample_dataset.low_filenames[i]}")
 
             key = cv2.waitKey(-1)
             if key == ord("q"):
