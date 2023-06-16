@@ -295,10 +295,10 @@ class Generator(nn.Module):
 
         if self.export_onnx == False:
             resampling_grid = F.affine_grid(theta.view(-1, 2, 3), out_rgb2ir.size())
-            out_rgb2ir_aligned = F.grid_sample(out_rgb2ir, resampling_grid, mode='bilinear', padding_mode='border', align_corners=False) # 'zeros', 'border', or 'reflection'
+            out_rgb2ir_aligned = F.grid_sample(out_rgb2ir, resampling_grid, mode='bilinear', padding_mode='zeros', align_corners=False) # 'zeros', 'border', or 'reflection'
             self.out_rgb2ir_aligned = out_rgb2ir_aligned # For loss calculation
             resampling_grid = F.affine_grid(theta.view(-1, 2, 3), y.size())
-            y_aligned = F.grid_sample(y, resampling_grid, mode='bilinear', padding_mode='border', align_corners=False) # 'zeros', 'border', or 'reflection'
+            y_aligned = F.grid_sample(y, resampling_grid, mode='bilinear', padding_mode='zeros', align_corners=False) # 'zeros', 'border', or 'reflection'
         else:
             #aten::affine_grid_generator Not yet supported. See https://pytorch.org/docs/stable/onnx_supported_aten_ops.html
             out_rgb2ir_aligned = out_rgb2ir # For loss calculation

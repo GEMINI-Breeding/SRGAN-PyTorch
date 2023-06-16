@@ -539,7 +539,7 @@ def validate(model, valid_dataloader, psnr_criterion, ssim_criterion, similaity_
             # Test Image
             sample_dataset = ImageDataset(dataroot=config.valid_image_dir, image_size=config.image_size, upscale_factor=4, mode="val",random_crop=False)
             # (low_img, rgb_img, high_img) = sample_dataset.getImage(5)
-            (low_img, rgb_img, high_ir, thermal_info) = sample_dataset[0] 
+            (low_img, rgb_img, high_ir, thermal_info) = sample_dataset[10] 
             with amp.autocast():
                 lr = low_img.unsqueeze(0).to(config.device, non_blocking=True)
                 rgb = rgb_img.unsqueeze(0).to(config.device, non_blocking=True)

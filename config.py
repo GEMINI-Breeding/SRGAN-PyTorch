@@ -72,8 +72,8 @@ class Config():
         # ==============================================================================
         if self.mode == "train_srgan":
             # Dataset address
-            self.train_image_dir = "/home/lion397/data/datasets/GEMINI/Training_T4_1_2_3/train"
-            self.valid_image_dir = "/home/lion397/data/datasets/GEMINI/Training_T4_1_2_3/val"
+            self.train_image_dir = "/home/lion397/data/datasets/GEMINI/Training_T4_1_2/train"
+            self.valid_image_dir = "/home/lion397/data/datasets/GEMINI/Training_T4_1_2/val"
 
 
             self.image_size = 256
@@ -83,15 +83,15 @@ class Config():
             self.num_workers = 1 # more than 4 is slower
 
             # Incremental training and migration training
-            self.resume = True
+            self.resume = False
             self.strict = False
-            self.start_epoch = 100
+            self.start_epoch = 0
             self.resume_d_weight = f"results/{exp_name}/d-last.pth"
             self.resume_g_weight = f"results/{exp_name}/g-last.pth"
 
             # Total num epochs
             #epochs = sys.maxsize # Very large number
-            self.epochs = 8000 # Very large number
+            self.epochs = 200 # Very large number
 
             # Loss function weight
 
@@ -99,14 +99,14 @@ class Config():
             self.content_weight = 1.0
             self.adversarial_weight = 0.004
 
-            self.adversarial_weight_step_size = 400
+            self.adversarial_weight_step_size = 50
             self.adversarial_weight_step_rate = 2
 
             self.similaity_weight = 0.0
 
             self.max_stn_reg =  0.4
             self.min_stn_reg =  0.02 # not perfect dataset.. there will be 1% of error
-            self.lambda_smooth = 1.0
+            self.lambda_smooth = 0.5
 
             self.lambda_identity = 0.1
 
@@ -117,8 +117,8 @@ class Config():
             self.g_model_betas = (0.9, 0.999)
 
             # MultiStepLR scheduler parameter for SRGAN
-            self.d_scheduler_step_size = 400
-            self.g_scheduler_step_size = 400
+            self.d_scheduler_step_size = 50
+            self.g_scheduler_step_size = 50
 
             self.d_scheduler_gamma = 0.1
             self.g_scheduler_gamma = 0.1
