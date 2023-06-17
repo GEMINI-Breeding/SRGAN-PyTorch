@@ -83,15 +83,15 @@ class Config():
             self.num_workers = 1 # more than 4 is slower
 
             # Incremental training and migration training
-            self.resume = True
+            self.resume = False
             self.strict = False
-            self.start_epoch = 100
+            self.start_epoch = 0
             self.resume_d_weight = f"results/{exp_name}/d-last.pth"
             self.resume_g_weight = f"results/{exp_name}/g-last.pth"
 
             # Total num epochs
             #epochs = sys.maxsize # Very large number
-            self.epochs = 8000 # Very large number
+            self.epochs = 600 # Very large number
 
             # Loss function weight
 
@@ -102,7 +102,7 @@ class Config():
             self.adversarial_weight_step_size = 400
             self.adversarial_weight_step_rate = 2
 
-            self.similaity_weight = 0.0
+            self.similaity_weight = 1.0
 
             self.max_stn_reg =  0.4
             self.min_stn_reg =  0.02 # not perfect dataset.. there will be 1% of error
@@ -117,8 +117,8 @@ class Config():
             self.g_model_betas = (0.9, 0.999)
 
             # MultiStepLR scheduler parameter for SRGAN
-            self.d_scheduler_step_size = 400
-            self.g_scheduler_step_size = 400
+            self.d_scheduler_step_size = 200
+            self.g_scheduler_step_size = 200
 
             self.d_scheduler_gamma = 0.1
             self.g_scheduler_gamma = 0.1

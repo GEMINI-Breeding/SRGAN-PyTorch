@@ -209,6 +209,8 @@ class ThermalImageDataset(Dataset):
         rgb_image = self.hr_transforms(rgb_image)
         
         if self.mode == "train":
+            
+            # Randomly flip the image
             if random.random() > 0.5:
                 hr_image = TF.vflip(hr_image)
                 lr_image  = TF.vflip(lr_image)
@@ -218,12 +220,56 @@ class ThermalImageDataset(Dataset):
                 hr_image = TF.hflip(hr_image)
                 lr_image  = TF.hflip(lr_image)
                 rgb_image  = TF.hflip(rgb_image)
+            
+            # Rotate -90, 0, 90, 180 randomly
+            angle = random.choice([0,90,180,-90])
+            hr_image =  TF.rotate(hr_image,angle)
+            lr_image  = TF.rotate(lr_image,angle)
+            rgb_image  = TF.rotate(rgb_image,angle)
 
-            if random.random() > 0.5:
-                hr_image =  TF.rotate(hr_image,90)
-                lr_image  = TF.rotate(lr_image,90)
-                rgb_image  = TF.rotate(rgb_image,90)
-    
+            # RGB augumentations
+            if 0:
+                # RGB image contrast augmentation
+                if random.random() > 0.5:
+                    rgb_image = TF.adjust_contrast(rgb_image, random.uniform(0.5,1.5))
+
+                # RGB image brightness augmentation
+                if random.random() > 0.5:
+                    rgb_image = TF.adjust_brightness(rgb_image, random.uniform(0.5,1.5))
+
+                # RGB image saturation augmentation
+                if random.random() > 0.5:
+                    rgb_image = TF.adjust_saturation(rgb_image, random.uniform(0.5,1.5))
+                    
+                # RGB image hue augmentation
+                if random.random() > 0.5:
+                    rgb_image = TF.adjust_hue(rgb_image, random.uniform(-0.1,0.1))
+                
+                # RGB image gamma augmentation
+                if random.random() > 0.5:
+                    rgb_image = TF.adjust_gamma(rgb_image, random.uniform(0.5,1.5))
+
+                # RGB image sharpness augmentation
+                if random.random() > 0.5:
+                    rgb_image = TF.adjust_sharpness(rgb_image, random.uniform(0.5,1.5))
+                
+                # RGB image equalize augmentation
+                if random.random() > 0.5:
+                    rgb_image = TF.equalize(rgb_image)
+
+                # # RGB image posterize augmentation
+                # if random.random() > 0.5:
+                #     rgb_image = TF.posterize(rgb_image, random.randint(0,4))
+
+                # # RGB image solarize augmentation
+                # if random.random() > 0.5:
+                #     rgb_image = TF.solarize(rgb_image, random.randint(0,256))
+
+                # RGB image autocontrast augmentation
+                if random.random() > 0.5:
+                    rgb_image = TF.autocontrast(rgb_image)
+
+            
 
         # Convert image data into Tensor stream format (PyTorch).
         # Note: The range of input and output is between [0, 1]

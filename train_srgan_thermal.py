@@ -37,7 +37,7 @@ from torchvision.transforms import functional as F
 autocast_on = False
 interrupted = False
 
-config = Config(mode="train_srgan", exp_name="2023-06-14-CycleGANSR_Final_Training_T4_1_2")
+config = Config(mode="train_srgan", exp_name="2023-06-17-CycleGANSR_Final_Training_T4_1_2")
 #config = Config(mode="train_srgan", exp_name="test")
 
 def handler(signum, _):
@@ -388,7 +388,7 @@ def train(discriminator,
         rgb_gray = F.rgb_to_grayscale(rgb)
         # similaity_val, _ = similaity_criterion(rgb_gray, hr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
         #similaity_val, _ = similaity_criterion(rgb_gray, sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
-        similaity_val, _ = similaity_criterion(hr.detach(), sr.detach()) # What if we panelize the loss if rgb_gray and hr deffers..?
+        similaity_val, _ = similaity_criterion(hr.detach(), sr) # What if we panelize the loss if rgb_gray and hr deffers..?
         #similaity_val, _ = similaity_criterion(hr.detach(), generator.out_rgb2ir_aligned)
         similaity_loss = config.similaity_weight * similaity_val # Loss function for Gradient Differnce
 
