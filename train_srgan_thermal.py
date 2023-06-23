@@ -37,7 +37,7 @@ from torchvision.transforms import functional as F
 autocast_on = False
 interrupted = False
 
-config = Config(mode="train_srgan", exp_name="2023-06-17-CycleGANSR_Final_Training_T4_1_2")
+config = Config(mode="train_srgan", exp_name="2023-06-18-CycleGANSR_Final_Training_T4_1_2_3_Detach")
 #config = Config(mode="train_srgan", exp_name="test")
 
 def handler(signum, _):
@@ -400,7 +400,7 @@ def train(discriminator,
 
         # Identity loss for cycle gan
         upsample  = nn.UpsamplingBilinear2d(scale_factor=4)
-        if 0:
+        if 1:
             #stn_loss = criterionIdt(upsample(lr.detach()), generator.out_rgb2ir_aligned) * config.lambda_smooth
             stn_loss_rgb = criterionIdt(hr.detach(), generator.out_rgb2ir_aligned) * config.lambda_smooth
             stn_loss_ir = criterionIdt(generator.y_aligned.detach(), upsample(generator.out_ir2rgb)) * config.lambda_smooth

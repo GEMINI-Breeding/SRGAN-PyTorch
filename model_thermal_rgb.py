@@ -311,11 +311,11 @@ class Generator(nn.Module):
 
         # RGB
         out_ir_1 = self.upsampling_img(x) # Pass to before last conv block
-        out_rgb_ir = torch.cat((out_ir_1, out_rgb2ir_aligned, y_aligned), 1) 
+        out_rgb_ir = torch.cat((out_ir_1, out_rgb2ir_aligned.detach(), y_aligned.detach()), 1) 
 
         out_rgb_ir_1 = self.conv_block1_cycleGAN(out_rgb_ir)
         out_rgb_ir_2 = self.trunk(out_rgb_ir_1) 
-        out_rgb_ir_3 = self.conv_block2_ir(out_rgb_ir_2)
+        out_rgb_ir_3 = self.conv_block2(out_rgb_ir_2)
         out_rgb_ir_4 = torch.add(out_rgb_ir_1, out_rgb_ir_3)
 
         if self.debug:
