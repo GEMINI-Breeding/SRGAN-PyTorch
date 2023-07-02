@@ -80,12 +80,12 @@ class Config():
             self.d_image_size = 96
             self.stn_image_size = self.d_image_size # It will resize the image
             self.batch_size = 8
-            self.num_workers = 12 # more than 4 is slower
+            self.num_workers = 8 # more than 4 is slower
 
             # Incremental training and migration training
-            self.resume = True
+            self.resume = False
             self.strict = False
-            self.start_epoch = 211
+            self.start_epoch = 0
             self.resume_d_weight = f"results/{exp_name}/d-last.pth"
             self.resume_g_weight = f"results/{exp_name}/g-last.pth"
 

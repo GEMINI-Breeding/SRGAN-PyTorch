@@ -58,6 +58,7 @@ def eulerAnglesToRotationMatrix(theta) :
     return R
 
 def calc_temp(image, temp_range):
+    # Normalize image
     if 0:
         cv2.normalize(image, None, 0, 1, cv2.NORM_MINMAX).astype(np.float64)
     else:

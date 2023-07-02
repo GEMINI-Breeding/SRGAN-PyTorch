@@ -15,7 +15,6 @@
 import io
 import os
 
-import lmdb
 import numpy as np
 from PIL import Image, ImageOps
 from torch import Tensor

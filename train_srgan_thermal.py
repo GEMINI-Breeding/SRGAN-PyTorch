@@ -37,7 +37,7 @@ from torchvision.transforms import functional as F
 autocast_on = False
 interrupted = False
 
-config = Config(mode="train_srgan", exp_name="2023-06-18-CycleGANSR_Final_Training_T4_1_2_3_Detach")
+config = Config(mode="train_srgan", exp_name="2023-06-23-CycleGANSR_Final_Training_T4_1_2_Detach")
 #config = Config(mode="train_srgan", exp_name="test")
 
 def handler(signum, _):

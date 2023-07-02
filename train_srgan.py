@@ -25,11 +25,13 @@ from torch.utils.tensorboard import SummaryWriter
 
 from config import Config
 from dataset import ImageDataset
-from model import Discriminator, Generator, ContentLoss
+#from model import Discriminator, Generator, ContentLoss
+from model import Generator, ContentLoss
+from model_thermal_rgb import Discriminator
 import numpy as np
 autocast_on = False
 
-config = Config(mode="train_srgan", exp_name="2022-04-26-VaillaSRGAN")
+config = Config(mode="train_srgan", exp_name="2023-06-23-VaillaSRGAN")
 
 def main():
     print("Load train dataset and valid dataset...")
@@ -144,7 +146,7 @@ def build_model() -> nn.Module:
         SRGAN model
 
     """
-    discriminator = Discriminator(image_size=config.image_size).to(config.device)
+    discriminator = Discriminator(image_size=config.d_image_size).to(config.device)
     generator = Generator().to(config.device)
 
     return discriminator, generator
@@ -368,7 +370,7 @@ def train(discriminator,
         writer.add_scalar("Train/Adversarial_Loss", adversarial_loss.item(), iters)
         writer.add_scalar("Train/D(HR)_Probability", d_hr_probability.item(), iters)
         writer.add_scalar("Train/D(SR)_Probability", d_sr_probability.item(), iters)
-        if (iters % config.print_frequency == 0 or index == 0):
+        if index % config.print_frequency == 0 and index != 0:
             progress.display(index)
 
 
